@@ -1,0 +1,41 @@
+{
+  "paths": {
+    "sql": ["models/**/*.sql", "sql/**/*.sql"],
+    "yaml": ["models/**/*.yml", "models/**/*.yaml", "schemas/**/*.yml"]
+  },
+  "naming": {
+    "service": "warehouse",
+    "database": "analytics",
+    "schema": "public",
+    "nameStrategy": "filename"
+  },
+  "mappings": [
+    {
+      "filePattern": "models/staging/**/*.sql",
+      "fqn": "warehouse.analytics.staging.{name}"
+    },
+    {
+      "filePattern": "models/marts/**/*.sql",
+      "fqn": "warehouse.analytics.public.{name}"
+    }
+  ],
+  "sensitiveTags": {
+    "keywords": ["PII", "GDPR", "Confidential", "Sensitive", "PHI", "PCI"]
+  },
+  "criticalTiers": ["Tier1", "Tier2", "Tier.Tier1", "Tier.Tier2"],
+  "highDownstreamThreshold": 5,
+  "thresholds": {
+    "warn": 30,
+    "fail": 70
+  },
+  "weights": {
+    "contractViolation": 40,
+    "criticalTier": 20,
+    "sensitiveTags": 20,
+    "downstreamDashboards": 10,
+    "downstreamMlModels": 10,
+    "highDownstreamCount": 10,
+    "noOwner": 10
+  },
+  "failOnUnresolved": false
+}

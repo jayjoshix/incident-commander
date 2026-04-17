@@ -1,0 +1,43 @@
+name: 'LineageLock'
+description: 'GitHub PR guard for data changes — blast radius, governance risk, and contract compatibility powered by OpenMetadata'
+author: 'LineageLock Team'
+
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  github-token:
+    description: 'GitHub token for PR API access'
+    required: true
+    default: ${{ github.token }}
+  openmetadata-url:
+    description: 'OpenMetadata server URL (e.g., http://localhost:8585)'
+    required: true
+  openmetadata-token:
+    description: 'OpenMetadata JWT authentication token'
+    required: true
+  config-path:
+    description: 'Path to .lineagelock.json config file'
+    required: false
+    default: '.lineagelock.json'
+  warn-threshold:
+    description: 'Risk score threshold for warnings (default: 30)'
+    required: false
+    default: '30'
+  fail-threshold:
+    description: 'Risk score threshold for failure (default: 70)'
+    required: false
+    default: '70'
+
+outputs:
+  risk_score:
+    description: 'Highest risk score across all changed entities (0-100)'
+  risk_level:
+    description: 'Overall risk level (LOW, MEDIUM, HIGH, CRITICAL)'
+  decision:
+    description: 'Action decision (pass, warn, fail)'
+
+runs:
+  using: 'node20'
+  main: 'dist/action/main.js'

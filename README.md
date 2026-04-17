@@ -1,245 +1,301 @@
-# 🛡️ OpenMetadata Incident Commander
+# LineageLock
 
-**Lineage-aware war room for data incidents.**
+**GitHub PR guard for data changes — blast radius, governance risk, and contract compatibility powered by [OpenMetadata](https://open-metadata.org).**
 
-When a data quality test fails, schema drift happens, or a pipeline breaks — Incident Commander uses OpenMetadata metadata to show you the full picture in seconds, not hours.
-
-![Status](https://img.shields.io/badge/status-hackathon--ready-7c3aed?style=flat-square)
-![Stack](https://img.shields.io/badge/stack-React%20%2B%20TypeScript%20%2B%20Vite-blue?style=flat-square)
-![OpenMetadata](https://img.shields.io/badge/integration-OpenMetadata-22c55e?style=flat-square)
-![Cost](https://img.shields.io/badge/cost-%240%20%2F%20no%20API%20keys-green?style=flat-square)
+[![OpenMetadata Integration](https://img.shields.io/badge/OpenMetadata-Integrated-blue?style=flat-square)](https://open-metadata.org)
+[![GitHub Action](https://img.shields.io/badge/GitHub_Action-Ready-green?style=flat-square)](https://github.com/features/actions)
+[![License](https://img.shields.io/badge/License-Apache_2.0-orange?style=flat-square)](LICENSE)
 
 ---
 
-## 🎯 Problem
+## The Problem
 
-When data breaks, teams waste hours playing detective:
-- *"What was affected?"* — Nobody knows the blast radius
-- *"How bad is it?"* — Severity is guesswork
-- *"Who owns this?"* — Ownership is buried in wikis
-- *"What should we do?"* — No playbook exists
-- *"Is this PII data?"* — Governance info lives in another tool
+Data teams routinely change dbt models, SQL files, and schema definitions without visibility into what might break downstream. A column rename in a staging model can silently break a Tier 1 executive dashboard, violate a data contract, or expose PII in a downstream table nobody remembered existed.
 
-**Result:** Slow response, missed SLAs, repeated incidents.
+**Code review catches code problems. LineageLock catches data problems.**
 
-## 💡 Solution
+## What It Does
 
-Incident Commander is a **single pane of glass** for data incidents that auto-enriches every alert with OpenMetadata context:
+When a PR changes a dbt model, SQL file, or schema YAML, LineageLock:
 
-| Feature | How It Helps |
-|---|---|
-| **Root Asset Identification** | Immediately see the origin of the problem |
-| **Blast Radius Visualization** | Know every downstream table, dashboard, ML model, and pipeline affected |
-| **Lineage Graph** | Interactive DAG showing upstream → downstream flow |
-| **Deterministic Severity Scoring** | 7-signal weighted algorithm — no LLM needed |
-| **Owner & Team Routing** | See every impacted person and team instantly |
-| **Governance Tags** | PII, GDPR, Tier flags front-and-center |
-| **Test Result Evidence** | Recent pass/fail details from OpenMetadata quality tests |
-| **Resolution Checklist** | Interactive playbook tailored to incident type |
-| **Incident Timeline** | Chronological event log of all actions |
-
----
-
-## 🏗️ Architecture
+1. **Detects** changed data model files in the PR
+2. **Resolves** file paths to OpenMetadata entities
+3. **Fetches** lineage, ownership, tags, tier, and data contracts from OpenMetadata
+4. **Computes** a deterministic risk score (0–100)
+5. **Posts** a detailed Markdown risk report as a PR comment
+6. **Blocks** the PR if the risk exceeds configurable thresholds
 
 ```
-┌─────────────────────────────────────────────────┐
-│                    React App                     │
-│  ┌──────────────────┐  ┌──────────────────────┐ │
-│  │ Incident List    │  │ War Room (Detail)     │ │
-│  │  · Summary stats │  │  · Severity gauge     │ │
-│  │  · Filter bar    │  │  · Lineage graph      │ │
-│  │  · Incident cards│  │  · Asset info + tags  │ │
-│  └──────────────────┘  │  · Blast radius       │ │
-│                        │  · Owners & teams     │ │
-│                        │  · Test results       │ │
-│                        │  · Action checklist   │ │
-│                        │  · Timeline           │ │
-│                        └──────────────────────┘ │
-├─────────────────────────────────────────────────┤
-│             Severity Scoring Engine              │
-│  7 weighted signals · deterministic · no LLM    │
-├─────────────────────────────────────────────────┤
-│           OpenMetadata Client Layer              │
-│  REST API calls / Mock data provider             │
-├─────────────────────────────────────────────────┤
-│     OpenMetadata Server (or Mock Data)           │
-└─────────────────────────────────────────────────┘
+PR opened → Changed files detected → OpenMetadata lookup → Risk scored → PR comment posted
 ```
 
-### Severity Scoring Signals (100-point scale)
+## Example PR Comment
 
-| Signal | Weight | Logic |
-|---|:---:|---|
-| Downstream count | 20% | 0–20+ assets → 0–100 score |
-| Asset tier / criticality | 20% | Tier1=100, Tier2=75, … |
-| Sensitive / PII tags | 15% | Presence of PII/GDPR/HIPAA tags |
-| Missing owner | 10% | Unowned asset = 80 score |
-| Recent test failures | 10% | Failures in last 7 days |
-| Impacted teams | 15% | Cross-team blast radius |
-| Dashboard/ML model impact | 10% | Feeds critical consumers |
+<details>
+<summary>Click to expand example report</summary>
 
----
+## 🔒 LineageLock Risk Report
 
-## 🚀 Quick Start
+### Overall Assessment
+
+| Metric | Value |
+|--------|-------|
+| **Risk Score** | 🔴 **100/100** (CRITICAL) |
+| **Decision** | 🚫 Block — manual review needed |
+| **Entities Analyzed** | 3 |
+| **Resolved** | 2 |
+| **Unresolved** | 1 |
+
+### 💥 Blast Radius
+
+| Category | Count |
+|----------|-------|
+| Total downstream entities | 8 |
+| Dashboards impacted | 2 |
+| ML Models impacted | 1 |
+
+### 🔴 `models/marts/fact_orders.sql`
+**Entity:** `warehouse.analytics.public.fact_orders`
+**Score:** 100/100 (CRITICAL)
+
+| Factor | Points | Status | Detail |
+|--------|--------|--------|--------|
+| Contract Violation | 40/40 | 🔴 Triggered | 1/4 tests failing |
+| Critical Tier Asset | 20/20 | 🔴 Triggered | Asset is Tier.Tier1 |
+| Sensitive Data Tags | 20/20 | 🔴 Triggered | PII.Sensitive, GDPR.Subject |
+| Downstream Dashboards | 10/10 | 🔴 Triggered | 2 dashboard(s) |
+| Downstream ML Models | 10/10 | 🔴 Triggered | 1 ML model(s) |
+| High Downstream Count | 10/10 | 🔴 Triggered | 7 downstream entities |
+| No Clear Owner | 0/10 | ✅ Clear | Owner: Data Engineering Team |
+
+📬 **Notify:** Data Engineering Team
+
+</details>
+
+## OpenMetadata Integration
+
+LineageLock uses the following OpenMetadata capabilities:
+
+| Capability | API Endpoint | Purpose |
+|------------|-------------|---------|
+| **Entity Resolution** | `GET /api/v1/tables/name/{fqn}` | Resolve changed files to metadata entities |
+| **Lineage Graph** | `GET /api/v1/lineage/table/{id}` | Compute blast radius and downstream impact |
+| **Ownership** | Entity `owner` field | Identify stakeholders to notify |
+| **Classifications** | Entity `tags` field | Detect PII, GDPR, and sensitive data |
+| **Tier/Criticality** | Entity `tier` tag | Identify business-critical assets |
+| **Data Contracts** | `GET /api/v1/dataQuality/testSuites` | Check contract/test compliance |
+
+## Quick Start
 
 ### Prerequisites
-- **Node.js** 18+ and npm
 
-### 1. Clone & Install
+- Node.js 20+
+- An OpenMetadata instance (or use demo mode)
+
+### Install
 
 ```bash
-git clone <repo-url>
-cd openmeta
+git clone https://github.com/jayjoshix/incident-commander.git
+cd incident-commander
 npm install
 ```
 
-### 2. Run in Mock Mode (no setup needed)
+### Demo Mode (No OpenMetadata Required)
 
 ```bash
-npm run dev
+# Full demo with fixture data
+npm run demo
+
+# High-risk scenario only
+npx ts-node src/cli.ts demo --scenario high-risk
+
+# Low-risk scenario only
+npx ts-node src/cli.ts demo --scenario low-risk
+
+# JSON output
+npx ts-node src/cli.ts demo --json
 ```
 
-Open **http://localhost:3000** — the app runs with realistic seeded data out of the box.
-
-### 3. Run with Real OpenMetadata
+### Live Analysis (Against Real OpenMetadata)
 
 ```bash
-cp .env.example .env
+# Set connection
+export OPENMETADATA_URL=http://localhost:8585
+export OPENMETADATA_TOKEN=your-jwt-token
+
+# Analyze specific files
+npm run dry-run -- analyze --changed-file models/fact_orders.sql models/staging/stg_payments.sql
 ```
 
-Edit `.env`:
-```env
-VITE_OPENMETADATA_URL=http://localhost:8585
-VITE_OPENMETADATA_TOKEN=eyJhbGciOi...
+### GitHub Action
+
+Add to your repository's `.github/workflows/lineagelock.yml`:
+
+```yaml
+name: LineageLock PR Guard
+
+on:
+  pull_request:
+    paths:
+      - 'models/**'
+      - 'sql/**'
+      - 'schemas/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  lineagelock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm run build
+      - uses: ./
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          openmetadata-url: ${{ secrets.OPENMETADATA_URL }}
+          openmetadata-token: ${{ secrets.OPENMETADATA_TOKEN }}
 ```
 
-Then:
+## Configuration
+
+Create a `.lineagelock.json` in your repo root:
+
+```json
+{
+  "paths": {
+    "sql": ["models/**/*.sql"],
+    "yaml": ["models/**/*.yml"]
+  },
+  "naming": {
+    "service": "warehouse",
+    "database": "analytics",
+    "schema": "public",
+    "nameStrategy": "filename"
+  },
+  "mappings": [
+    {
+      "filePattern": "models/staging/**/*.sql",
+      "fqn": "warehouse.analytics.staging.{name}"
+    }
+  ],
+  "sensitiveTags": {
+    "keywords": ["PII", "GDPR", "Confidential"]
+  },
+  "criticalTiers": ["Tier1", "Tier2", "Tier.Tier1", "Tier.Tier2"],
+  "thresholds": {
+    "warn": 30,
+    "fail": 70
+  }
+}
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENMETADATA_URL` | OpenMetadata server URL | — |
+| `OPENMETADATA_TOKEN` | JWT authentication token | — |
+| `GITHUB_TOKEN` | GitHub token (auto-provided in Actions) | — |
+| `LINEAGELOCK_WARN_THRESHOLD` | Score to trigger warning | `30` |
+| `LINEAGELOCK_FAIL_THRESHOLD` | Score to trigger failure | `70` |
+| `LINEAGELOCK_CONFIG_PATH` | Path to config file | `.lineagelock.json` |
+
+## Risk Scoring
+
+LineageLock computes a deterministic score from 0–100:
+
+| Factor | Default Weight | Trigger |
+|--------|---------------|---------|
+| Contract violation | +40 | Data contract tests failing |
+| Critical tier | +20 | Asset is Tier 1 or Tier 2 |
+| Sensitive tags | +20 | PII, GDPR, or similar tags found |
+| Downstream dashboards | +10 | Any dashboard depends on this asset |
+| Downstream ML models | +10 | Any ML model depends on this asset |
+| High downstream count | +10 | ≥5 downstream entities |
+| No clear owner | +10 | No owner assigned in OpenMetadata |
+
+**Score is capped at 100.**
+
+| Score Range | Level | Decision |
+|------------|-------|----------|
+| 0–29 | 🟢 LOW | Pass |
+| 30–59 | 🟡 MEDIUM | Warn (review recommended) |
+| 60–79 | 🟠 HIGH | Warn or fail (configurable) |
+| 80–100 | 🔴 CRITICAL | Fail (block merge) |
+
+## Testing
+
 ```bash
-npm run dev
+# Run all tests
+npm test
+
+# Watch mode
+npm run test:watch
+
+# Build check
+npm run build
 ```
 
-The header badge switches from 🟡 **Mock Mode** → 🟢 **Live** when connected.
-
----
-
-## 🔧 Environment Variables
-
-| Variable | Required | Description |
-|---|:---:|---|
-| `VITE_OPENMETADATA_URL` | No | OpenMetadata server URL (e.g. `http://localhost:8585`) |
-| `VITE_OPENMETADATA_TOKEN` | No | JWT or bot token for authentication |
-
-**Both empty = Mock Mode** with built-in demo data.
-
----
-
-## 🎬 Demo Scenario
-
-Follow this script for a compelling 3-minute demo:
-
-### Act 1 — The Command Center (30s)
-1. Open the app → Show the **Incident Command Center**
-2. Point out the summary stats: active incidents, critical count
-3. Show the severity color coding and filter options
-
-### Act 2 — Critical Incident Deep Dive (90s)
-1. Click the **"Null values detected in raw_orders.order_id"** incident
-2. Walk through:
-   - **Severity Gauge**: Score of 75+ with 7 signal breakdown
-   - **Lineage Graph**: Interactive DAG showing data flow from ingestion → raw → staging → analytics → dashboards + ML model
-   - **Root Asset Panel**: `warehouse.raw.orders` with PII tags highlighted in red
-   - **Blast Radius**: 8+ downstream assets including Revenue Dashboard and Churn ML model
-   - **Impacted Owners**: 4 people across 3 teams
-   - **Test Results**: 4 failed, 1 passed — with detail messages
-   - **Resolution Checklist**: Interactive, categorized steps
-
-### Act 3 — Schema Drift & Pipeline Failure (45s)
-1. Go back → Click schema drift incident → Show different checklist
-2. Go back → Click pipeline failure → Show it's already partially resolved (3/10 checked)
-
-### Act 4 — Why This Matters (15s)
-- "Every signal here is from OpenMetadata — lineage, owners, tags, tiers, test results"
-- "Zero LLM cost, zero external APIs — pure deterministic logic"
-- "This turns a 2-hour war room into a 2-minute triage"
-
----
-
-## 📂 Project Structure
+## Project Structure
 
 ```
-src/
-├── components/
-│   ├── Header.tsx              # App header with mode indicator
-│   ├── IncidentCard.tsx        # Incident list card
-│   ├── AssetInfo.tsx           # Root asset detail panel
-│   ├── SeverityScore.tsx       # Gauge + signal breakdown
-│   ├── BlastRadius.tsx         # Downstream impact stats
-│   ├── ImpactedOwners.tsx      # Owner/team cards
-│   ├── TestResults.tsx         # Test case pass/fail list
-│   ├── ActionChecklist.tsx     # Interactive resolution steps
-│   ├── IncidentTimeline.tsx    # Chronological event log
-│   └── LineageGraph.tsx        # React Flow lineage DAG
-├── pages/
-│   ├── IncidentListPage.tsx    # Incident command center
-│   └── WarRoomPage.tsx         # Incident detail / war room
-├── lib/
-│   ├── types.ts                # TypeScript type definitions
-│   ├── severity-engine.ts      # 7-signal scoring algorithm
-│   └── openmetadata-client.ts  # REST API client layer
-├── data/
-│   └── mock-data.ts            # Seeded demo data (12 assets, 3 incidents)
-├── App.tsx                     # Router setup
-├── main.tsx                    # Entry point
-└── index.css                   # Full design system
+├── .github/workflows/      # GitHub Actions workflow
+├── src/
+│   ├── action/              # GitHub Action entry point
+│   │   ├── github.ts        # PR API helpers
+│   │   └── main.ts          # Action orchestrator
+│   ├── openmetadata/        # OpenMetadata API client
+│   │   ├── client.ts        # REST API client
+│   │   └── types.ts         # API response types
+│   ├── resolver/            # File → entity resolution
+│   │   └── asset-resolver.ts
+│   ├── risk/                # Risk scoring engine
+│   │   ├── scoring.ts       # Score computation
+│   │   └── types.ts         # Risk types
+│   ├── report/              # PR comment rendering
+│   │   └── renderer.ts      # Markdown generator
+│   ├── config/              # Configuration
+│   │   ├── loader.ts        # Config file + env loader
+│   │   └── types.ts         # Config types
+│   ├── fixtures/            # Demo data
+│   │   └── demo-data.ts     # Realistic fixture entities
+│   ├── cli.ts               # CLI for local usage
+│   └── index.ts             # Library exports
+├── tests/                   # Test suite
+├── .lineagelock.json        # Example config
+├── action.yml               # GitHub Action metadata
+├── ARCHITECTURE.md          # Technical architecture
+├── DEMO_SCRIPT.md           # 3-minute demo script
+└── HACKATHON_SUBMISSION.md  # Submission materials
 ```
 
----
+## Limitations & Future Work
 
-## 🔗 OpenMetadata Features Used
+**Current scope (MVP):**
+- Focused on dbt models, SQL files, and schema YAML
+- Table entities only (dashboard/pipeline entities planned)
+- Lineage depth of 3 downstream hops
+- Contract validation via test suite status (not schema-diff)
 
-| Feature | How We Use It |
-|---|---|
-| **Entity Metadata** | Asset details, descriptions, service info |
-| **Lineage API** | Upstream/downstream dependency traversal |
-| **Ownership** | Route incidents to the right people |
-| **Classifications & Tags** | PII, Sensitivity, GDPR detection |
-| **Tier System** | Criticality weighting in severity score |
-| **Data Quality Test Cases** | Evidence of failures, pass/fail history |
-| **Test Case Results** | Actual error messages and failure counts |
+**Future work:**
+- Column-level impact analysis
+- Schema diff detection (before/after comparison)
+- Slack/Teams notifications for affected owners
+- Support for dbt manifest.json parsing for richer resolution
+- Dashboard and pipeline entity support as first-class citizens
+- Caching layer for OpenMetadata API responses
+- Multi-repo support
 
----
+## License
 
-## 🏆 Why This Wins a Hackathon
-
-| Criterion | How We Nail It |
-|---|---|
-| **Real-world usefulness** | Every data team needs incident triage |
-| **OpenMetadata depth** | Uses 7+ OpenMetadata features, not just search |
-| **Zero cost** | No OpenAI, no paid APIs, runs locally |
-| **Demo quality** | Dark-mode UI, animated graphs, interactive panels |
-| **Technical depth** | Deterministic scoring engine, lineage traversal, BFS algorithms |
-| **Completeness** | List → Detail → Scoring → Actions, full user flow |
-| **Code quality** | TypeScript, typed throughout, clean separation |
+Apache 2.0
 
 ---
 
-## 🛠️ Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Framework | React 19 + TypeScript |
-| Bundler | Vite |
-| Routing | React Router v7 |
-| Graph | React Flow (@xyflow/react) |
-| Icons | Lucide React |
-| Styling | Vanilla CSS (dark mode, glassmorphism) |
-| Fonts | Inter + JetBrains Mono (Google Fonts) |
-
-**Total dependencies: 4** (react-router-dom, @xyflow/react, lucide-react, + React itself)
-
----
-
-## 📝 License
-
-MIT — built for the WeMakeDevs hackathon.
+Built for the [WeMakeDevs × OpenMetadata Hackathon](https://wemakedevs.org) (April 17–26, 2026).

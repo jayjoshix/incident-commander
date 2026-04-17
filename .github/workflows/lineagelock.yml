@@ -1,0 +1,42 @@
+name: LineageLock PR Guard
+
+on:
+  pull_request:
+    paths:
+      - 'models/**'
+      - 'sql/**'
+      - 'schemas/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  lineagelock:
+    name: 🔒 LineageLock Risk Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Run LineageLock
+        uses: ./
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          openmetadata-url: ${{ secrets.OPENMETADATA_URL }}
+          openmetadata-token: ${{ secrets.OPENMETADATA_TOKEN }}
+          config-path: '.lineagelock.json'
+          warn-threshold: '30'
+          fail-threshold: '70'
