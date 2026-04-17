@@ -116,16 +116,68 @@ npx ts-node src/cli.ts demo --scenario low-risk
 npx ts-node src/cli.ts demo --json
 ```
 
-### Live Analysis (Against Real OpenMetadata)
+### Real OpenMetadata Integration
+
+LineageLock is designed to work against a **real OpenMetadata instance**. Here's the full setup:
+
+#### Option A: Local OpenMetadata (Docker)
 
 ```bash
-# Set connection
-export OPENMETADATA_URL=http://localhost:8585
-export OPENMETADATA_TOKEN=your-jwt-token
+# 1. Start OpenMetadata locally (requires Docker)
+npm run setup-om
 
-# Analyze specific files
-npm run dry-run -- analyze --changed-file models/fact_orders.sql models/staging/stg_payments.sql
+# 2. Get your JWT token from the OpenMetadata UI:
+#    → http://localhost:8585 → Settings → Bots → ingestion-bot → Copy Token
+
+# 3. Set credentials
+export OPENMETADATA_URL=http://localhost:8585
+export OPENMETADATA_TOKEN=<your-jwt-token>
+
+# 4. Seed sample data (tables, lineage, tags, ownership)
+npm run seed
+
+# 5. Run LineageLock against real data
+npm run dry-run -- analyze --changed-file models/marts/fact_orders.sql
+
+# 6. Run the full integration test suite
+npm run integration-test
 ```
+
+#### Option B: Existing OpenMetadata Instance
+
+```bash
+# Point to your instance
+export OPENMETADATA_URL=https://your-openmetadata.company.com
+export OPENMETADATA_TOKEN=<your-jwt-token>
+
+# Update .lineagelock.json with your service/database/schema names
+# Then analyze files that match entities in your instance
+npm run dry-run -- analyze --changed-file models/fact_orders.sql
+```
+
+#### What the Seed Script Creates
+
+The `npm run seed` command creates real entities in OpenMetadata:
+
+| Entity | FQN | Details |
+|--------|-----|---------|
+| **fact_orders** | `warehouse.analytics.public.fact_orders` | Tier 1, PII tags, owned by data-engineering |
+| **dim_customers** | `warehouse.analytics.public.dim_customers` | Tier 2, PII on email column |
+| **agg_daily_revenue** | `warehouse.analytics.public.agg_daily_revenue` | Tier 1, downstream of fact_orders |
+| **stg_payments** | `warehouse.analytics.staging.stg_payments` | No owner, no tags |
+| **stg_orders** | `warehouse.analytics.staging.stg_orders` | Staging model |
+
+Lineage edges: `stg_orders → fact_orders → agg_daily_revenue`, `stg_payments → fact_orders`, `dim_customers → fact_orders`
+
+#### Integration Test
+
+The integration test validates every component against a live instance:
+
+```bash
+npm run integration-test
+```
+
+It tests: server connectivity, entity resolution, metadata fields (owner, tags, tier), lineage graph traversal, data contracts, full risk scoring pipeline, multi-entity reports, and error handling.
 
 ### GitHub Action
 
@@ -246,6 +298,10 @@ npm run build
 
 ```
 ├── .github/workflows/      # GitHub Actions workflow
+├── scripts/
+│   ├── setup-openmetadata.sh    # One-command local OM setup
+│   ├── seed-openmetadata.ts     # Seeds real OM with sample data
+│   └── integration-test.ts      # E2E test against live OM
 ├── src/
 │   ├── action/              # GitHub Action entry point
 │   │   ├── github.ts        # PR API helpers
@@ -267,7 +323,7 @@ npm run build
 │   │   └── demo-data.ts     # Realistic fixture entities
 │   ├── cli.ts               # CLI for local usage
 │   └── index.ts             # Library exports
-├── tests/                   # Test suite
+├── tests/                   # Test suite (58 tests)
 ├── .lineagelock.json        # Example config
 ├── action.yml               # GitHub Action metadata
 ├── ARCHITECTURE.md          # Technical architecture

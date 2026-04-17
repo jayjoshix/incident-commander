@@ -10,8 +10,11 @@
     "test:watch": "jest --watch",
     "lint": "tsc --noEmit",
     "dry-run": "ts-node src/cli.ts",
-    "demo": "ts-node src/cli.ts --demo",
+    "demo": "ts-node src/cli.ts demo",
     "action": "ts-node src/action/main.ts",
+    "seed": "ts-node scripts/seed-openmetadata.ts",
+    "integration-test": "ts-node scripts/integration-test.ts",
+    "setup-om": "bash scripts/setup-openmetadata.sh",
     "clean": "rm -rf dist coverage"
   },
   "keywords": [
