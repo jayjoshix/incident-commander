@@ -17,8 +17,8 @@ describe('loadConfig', () => {
     const config = loadConfig(configPath);
 
     // Should have merged values from the file
-    expect(config.naming.service).toBe('warehouse');
-    expect(config.naming.database).toBe('analytics');
+    expect(config.naming.service).toBe('acme_nexus_analytics');
+    expect(config.naming.database).toBe('ANALYTICS');
     // Should still have defaults for unspecified fields
     expect(config.weights.contractViolation).toBe(40);
   });

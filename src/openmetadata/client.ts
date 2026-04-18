@@ -50,7 +50,7 @@ export class OpenMetadataClient {
         `/api/v1/tables/name/${encodeURIComponent(fqn)}`,
         {
           params: {
-            fields: 'owner,tags,columns,dataModel,testSuite,tier',
+            fields: 'owners,tags,columns,dataModel,testSuite',
           },
         }
       );
@@ -243,21 +243,41 @@ export class OpenMetadataClient {
         tags: col.tags,
         constraint: col.constraint,
       })),
-      owner: raw.owner
-        ? {
-            id: raw.owner.id,
-            type: raw.owner.type,
-            name: raw.owner.name,
-            fullyQualifiedName: raw.owner.fullyQualifiedName,
-            displayName: raw.owner.displayName,
-          }
-        : undefined,
+      owner: this.normalizeOwner(raw),
       tags,
       service: raw.service,
       database: raw.database,
       databaseSchema: raw.databaseSchema,
       tier,
     };
+  }
+
+  /**
+   * Normalize owner from either `owner` (singular, older OM) or `owners` (array, OM 1.12+).
+   */
+  private normalizeOwner(raw: any): Owner | undefined {
+    // OM 1.12+ uses `owners` (array)
+    if (raw.owners && Array.isArray(raw.owners) && raw.owners.length > 0) {
+      const o = raw.owners[0];
+      return {
+        id: o.id,
+        type: o.type,
+        name: o.name,
+        fullyQualifiedName: o.fullyQualifiedName,
+        displayName: o.displayName || o.name,
+      };
+    }
+    // Older OM uses `owner` (singular)
+    if (raw.owner) {
+      return {
+        id: raw.owner.id,
+        type: raw.owner.type,
+        name: raw.owner.name,
+        fullyQualifiedName: raw.owner.fullyQualifiedName,
+        displayName: raw.owner.displayName || raw.owner.name,
+      };
+    }
+    return undefined;
   }
 
   /**

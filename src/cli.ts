@@ -148,21 +148,9 @@ program
     }
   });
 
-// ─── Single file dry-run (shorthand) ──────────────────────────────────────
-
-program
-  .argument('[files...]', 'Changed files to analyze (shorthand for analyze)')
-  .option('--demo', 'Use demo fixtures instead of live OpenMetadata')
-  .option('--config <path>', 'Path to .lineagelock.json')
-  .action((files, opts) => {
-    if (opts.demo || files.length === 0) {
-      program.commands.find((c) => c.name() === 'demo')?.parse(['node', 'cli', 'demo']);
-      return;
-    }
-    // Forward to analyze command
-    const args = ['node', 'cli', 'analyze', '--changed-file', ...files];
-    if (opts.config) args.push('--config', opts.config);
-    program.parse(args);
-  });
-
-program.parse();
+(async () => {
+  await program.parseAsync();
+})().catch((err) => {
+  console.error(`❌ Fatal: ${err.message || err}`);
+  process.exit(1);
+});

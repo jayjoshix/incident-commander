@@ -4,23 +4,27 @@
     "yaml": ["models/**/*.yml", "models/**/*.yaml", "schemas/**/*.yml"]
   },
   "naming": {
-    "service": "warehouse",
-    "database": "analytics",
-    "schema": "public",
+    "service": "acme_nexus_analytics",
+    "database": "ANALYTICS",
+    "schema": "MARTS",
     "nameStrategy": "filename"
   },
   "mappings": [
     {
       "filePattern": "models/staging/**/*.sql",
-      "fqn": "warehouse.analytics.staging.{name}"
+      "fqn": "acme_nexus_analytics.ANALYTICS.STAGING.{name}"
     },
     {
       "filePattern": "models/marts/**/*.sql",
-      "fqn": "warehouse.analytics.public.{name}"
+      "fqn": "acme_nexus_analytics.ANALYTICS.MARTS.{name}"
+    },
+    {
+      "filePattern": "models/metrics/**/*.sql",
+      "fqn": "acme_nexus_analytics.ANALYTICS.METRICS.{name}"
     }
   ],
   "sensitiveTags": {
-    "keywords": ["PII", "GDPR", "Confidential", "Sensitive", "PHI", "PCI"]
+    "keywords": ["PII", "GDPR", "Confidential", "Sensitive", "PHI", "PCI", "DataSensitivity"]
   },
   "criticalTiers": ["Tier1", "Tier2", "Tier.Tier1", "Tier.Tier2"],
   "highDownstreamThreshold": 5,
