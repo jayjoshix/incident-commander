@@ -16,6 +16,7 @@
     "integration-test": "ts-node scripts/integration-test.ts",
     "live-test": "node scripts/live-sandbox-test.js",
     "dashboard": "node scripts/dashboard.js",
+    "website": "node scripts/website.js",
     "setup-om": "bash scripts/setup-openmetadata.sh",
     "clean": "rm -rf dist coverage"
   },
@@ -37,6 +38,7 @@
     "axios": "^1.7.0",
     "commander": "^12.1.0",
     "dotenv": "^17.4.2",
+    "express": "^5.2.1",
     "glob": "^10.3.0",
     "minimatch": "^9.0.0"
   },
