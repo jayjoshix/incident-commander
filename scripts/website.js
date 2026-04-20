@@ -94,6 +94,40 @@ app.post('/api/analyze', async (req, res) => {
   }
 });
 
+app.get('/api/tables', async (req, res) => {
+  try {
+    const axios = require('axios');
+    const http = axios.default.create({
+      baseURL: OM_URL, timeout: 15000,
+      headers: { Authorization: `Bearer ${OM_TOKEN}`, 'Content-Type': 'application/json' },
+    });
+    // Fetch tables from the sandbox service
+    const r = await http.get('/api/v1/tables', {
+      params: { limit: 50, fields: 'owners,tags' },
+    });
+    const tables = (r.data.data || []).map(t => {
+      const fqn = t.fullyQualifiedName || '';
+      const parts = fqn.split('.');
+      const schema = parts.length >= 3 ? parts[parts.length - 2] : 'unknown';
+      const name = parts.length >= 1 ? parts[parts.length - 1] : t.name;
+      const file = 'models/' + schema.toLowerCase() + '/' + name + '.sql';
+      const owner = (t.owners && t.owners[0]) ? (t.owners[0].displayName || t.owners[0].name) : (t.owner ? (t.owner.displayName || t.owner.name) : null);
+      const tier = (t.tags || []).find(tg => tg.tagFQN && tg.tagFQN.startsWith('Tier.'));
+      return {
+        file,
+        fqn,
+        name: t.name,
+        owner,
+        tier: tier ? tier.tagFQN : null,
+        tagCount: (t.tags || []).length,
+      };
+    });
+    res.json({ tables });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ═══════════════════════════ PAGES ═══════════════════════════
 
 app.get('/', (req, res) => {
@@ -521,6 +555,33 @@ function getHTML() {
     .nav-links { gap: 20px !important; flex-wrap: wrap; }
     .nav-links a { font-size: 0.82rem !important; }
 
+    /* Richer file chips */
+    .file-chip {
+      padding: 12px 16px !important; border-radius: 12px !important;
+      display: flex; flex-direction: column; gap: 4px;
+      min-width: 200px; cursor: pointer;
+    }
+    .chip-name { font-weight: 600; font-size: 0.9rem; }
+    .chip-fqn { font-size: 0.7rem; color: var(--text-muted); font-family: monospace; word-break: break-all; }
+    .chip-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+    .chip-badge {
+      font-size: 0.65rem; padding: 1px 6px; border-radius: 4px;
+      background: rgba(255,255,255,0.06); color: var(--text-dim);
+    }
+    .chip-badge.tier { background: rgba(245,158,11,0.15); color: #f59e0b; }
+    .chip-badge.owner { background: rgba(16,185,129,0.15); color: #10b981; }
+    .chip-badge.tags { background: rgba(99,102,241,0.15); color: #a5b4fc; }
+    .file-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+    .file-selector-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .file-selector-actions { display: flex; align-items: center; gap: 12px; }
+    .chip-count { font-size: 0.85rem; color: var(--text-dim); }
+    .chip-action {
+      padding: 4px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 500;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-dim);
+      cursor: pointer; transition: all 0.15s;
+    }
+    .chip-action:hover { background: rgba(255,255,255,0.1); color: #fff; }
+
     @media (max-width: 900px) {
       .integration-cards { grid-template-columns: 1fr; }
       .config-layout, .action-layout { grid-template-columns: 1fr; }
@@ -920,7 +981,14 @@ jobs:
       </div>
 
       <div class="file-selector">
-        <h3>📁 Select Changed Files</h3>
+        <div class="file-selector-header">
+          <h3>📁 Select Tables to Analyze</h3>
+          <div class="file-selector-actions">
+            <span id="chip-count" class="chip-count">0 / 0 selected</span>
+            <button class="chip-action" onclick="selectAll()">Select All</button>
+            <button class="chip-action" onclick="selectNone()">Clear</button>
+          </div>
+        </div>
         <div class="file-chips" id="file-chips"></div>
         <button class="analyze-btn" id="analyze-btn" onclick="runAnalysis()" disabled>🔍 Analyze Risk</button>
       </div>
@@ -937,15 +1005,27 @@ jobs:
 
   <script>
     // Available files for analysis
-    const AVAILABLE_FILES = [
-      { file: 'models/marts/fact_orders.sql', fqn: 'acme_nexus_analytics.ANALYTICS.MARTS.fact_orders' },
-      { file: 'models/staging/stg_orders.sql', fqn: 'acme_nexus_analytics.ANALYTICS.STAGING.stg_orders' },
-      { file: 'models/staging/stg_products.sql', fqn: 'acme_nexus_analytics.ANALYTICS.STAGING.stg_products' },
-      { file: 'models/marts/dim_products.sql', fqn: 'acme_nexus_analytics.ANALYTICS.MARTS.dim_products' },
-      { file: 'models/staging/stg_customers.sql', fqn: 'acme_nexus_analytics.ANALYTICS.STAGING.stg_customers' },
-    ];
+    let AVAILABLE_FILES = [];
+    const selected = new Set();
+    let tablesLoaded = false;
 
-    const selected = new Set([0, 1, 2]); // Default selected
+    // Fetch real tables from OpenMetadata
+    async function loadTables() {
+      const chipsEl = document.getElementById('file-chips');
+      chipsEl.innerHTML = '<div style="color:var(--text-dim);font-size:0.9rem">⏳ Loading tables from OpenMetadata...</div>';
+      try {
+        const res = await fetch('/api/tables');
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        AVAILABLE_FILES = data.tables.map(t => ({ file: t.file, fqn: t.fqn, name: t.name, owner: t.owner, tier: t.tier, tagCount: t.tagCount }));
+        // Pre-select first 3
+        for (let i = 0; i < Math.min(3, AVAILABLE_FILES.length); i++) selected.add(i);
+        tablesLoaded = true;
+        initChips();
+      } catch (e) {
+        chipsEl.innerHTML = '<div style="color:var(--red);font-size:0.9rem">❌ Failed to load tables: ' + e.message + '</div>';
+      }
+    }
 
     const COLORS = { LOW: '#10b981', MEDIUM: '#f59e0b', HIGH: '#f97316', CRITICAL: '#ef4444' };
     const EMOJI = { LOW: '🟢', MEDIUM: '🟡', HIGH: '🟠', CRITICAL: '🔴' };
@@ -966,14 +1046,34 @@ jobs:
     // Init file chips
     function initChips() {
       const container = document.getElementById('file-chips');
-      container.innerHTML = AVAILABLE_FILES.map((f, i) => 
-        '<span class="file-chip ' + (selected.has(i) ? 'selected' : '') + '" onclick="toggleFile(' + i + ')">' + f.file + '</span>'
-      ).join('');
+      container.innerHTML = AVAILABLE_FILES.map((f, i) => {
+        var sel = selected.has(i) ? ' selected' : '';
+        var meta = '';
+        if (f.tier) meta += '<span class="chip-badge tier">' + f.tier + '</span>';
+        if (f.owner) meta += '<span class="chip-badge owner">👤 ' + f.owner + '</span>';
+        if (f.tagCount) meta += '<span class="chip-badge tags">🏷️ ' + f.tagCount + '</span>';
+        return '<div class="file-chip' + sel + '" onclick="toggleFile(' + i + ')">' +
+          '<div class="chip-name">' + f.name + '</div>' +
+          '<div class="chip-fqn">' + f.fqn + '</div>' +
+          (meta ? '<div class="chip-meta">' + meta + '</div>' : '') +
+          '</div>';
+      }).join('');
       document.getElementById('analyze-btn').disabled = selected.size === 0;
+      document.getElementById('chip-count').textContent = selected.size + ' / ' + AVAILABLE_FILES.length + ' selected';
     }
 
     function toggleFile(i) {
       selected.has(i) ? selected.delete(i) : selected.add(i);
+      initChips();
+    }
+
+    function selectAll() {
+      for (var i = 0; i < AVAILABLE_FILES.length; i++) selected.add(i);
+      initChips();
+    }
+
+    function selectNone() {
+      selected.clear();
       initChips();
     }
 
@@ -1111,7 +1211,7 @@ jobs:
     }
 
     // Init
-    initChips();
+    loadTables();
     checkConnection();
   </script>
 </body>
