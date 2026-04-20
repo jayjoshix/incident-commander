@@ -39,7 +39,7 @@ LineageLock is structured as three layers: a **reusable TypeScript library**, a 
 │  │                                                           │   │
 │  │  GET /api/v1/tables/name/{fqn}      Entity metadata       │   │
 │  │  GET /api/v1/lineage/table/{id}     Lineage graph         │   │
-│  │  GET /api/v1/dataQuality/testSuites Contract validation   │   │
+│  │  GET /api/v1/dataQuality/testSuites/search/list Contract validation   │   │
 │  └───────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -122,7 +122,7 @@ PR Event
   │     │     ├── GET /api/v1/lineage/table/{id}
   │     │     │     → upstream & downstream graph
   │     │     │
-  │     │     └── GET /api/v1/dataQuality/testSuites
+  │     │     └── GET /api/v1/dataQuality/testSuites/search/list
   │     │           → contract test results
   │     │
   │     └── Categorize downstream nodes:

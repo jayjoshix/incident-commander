@@ -50,10 +50,10 @@ LineageLock uses 6 OpenMetadata capabilities through the official REST API:
 |---|-----------|----------|----------------------|
 | 1 | **Entity Resolution** | `GET /api/v1/tables/name/{fqn}` | Map changed PR files to OpenMetadata table entities |
 | 2 | **Lineage Graph** | `GET /api/v1/lineage/table/{id}` | Compute blast radius — downstream tables, dashboards, ML models, pipelines |
-| 3 | **Ownership** | Entity `owner` field | Identify stakeholders to notify when their asset is impacted |
+| 3 | **Ownership** | Entity `owners[]` / `owner` field | Identify stakeholders to notify when their asset is impacted (supports v1.12+ `owners` array and legacy `owner` field) |
 | 4 | **Classifications/Tags** | Entity & column `tags` fields | Detect PII, GDPR, and sensitive data exposure risks |
 | 5 | **Tier/Criticality** | Entity `tier` tag | Identify changes to business-critical Tier 1/Tier 2 assets |
-| 6 | **Data Contracts** | `GET /api/v1/dataQuality/testSuites` | Check if data quality tests are passing or failing |
+| 6 | **Data Contracts** | `GET /api/v1/dataQuality/testSuites/search/list` | Check if data quality tests are passing or failing |
 
 This is not a superficial integration. LineageLock depends on OpenMetadata as its core data source — without it, there is no blast radius, no governance context, and no risk score.
 
@@ -153,7 +153,7 @@ See `DEMO_SCRIPT.md` for a complete 3-minute presentation script.
 | OpenMetadata REST API client | ✅ Real | Connects to any OpenMetadata instance |
 | Entity resolution by FQN | ✅ Real | Uses `/api/v1/tables/name/{fqn}` |
 | Lineage graph fetching | ✅ Real | Uses `/api/v1/lineage/table/{id}` |
-| Data contract validation | ✅ Real | Uses `/api/v1/dataQuality/testSuites` |
+| Data contract validation | ✅ Real | Uses `/api/v1/dataQuality/testSuites/search/list` |
 | Risk scoring engine | ✅ Real | Deterministic, fully functional |
 | PR comment rendering | ✅ Real | Produces valid GitHub Markdown |
 | GitHub Action | ✅ Real | Wired up, ready for deployment |
