@@ -588,6 +588,13 @@ function getHTML() {
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
     }
 
+    // Toggle factors accordion
+    function toggleFactors(btn) {
+      var body = btn.nextElementSibling;
+      body.classList.toggle('open');
+      btn.querySelector('span').textContent = body.classList.contains('open') ? '▼' : '▶';
+    }
+
     // Init file chips
     function initChips() {
       const container = document.getElementById('file-chips');
@@ -715,7 +722,7 @@ function getHTML() {
 
         // Factors
         html += '<div class="factors-wrap">';
-        html += '<button class="factors-toggle" onclick="this.nextElementSibling.classList.toggle(\'open\');this.querySelector(\'span\').textContent=this.nextElementSibling.classList.contains(\'open\')?\'▼\':\'▶\'"><span>▶</span>&nbsp; Risk Factors (' + triggered + '/' + r.factors.length + ' triggered)</button>';
+        html += '<button class="factors-toggle" onclick="toggleFactors(this)"><span>▶</span>&nbsp; Risk Factors (' + triggered + '/' + r.factors.length + ' triggered)</button>';
         html += '<div class="factors-body">';
         r.factors.forEach(f => {
           const pct = f.maxPoints > 0 ? (f.points / f.maxPoints * 100) : 0;
