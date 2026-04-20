@@ -114,7 +114,7 @@ LineageLock uses the following OpenMetadata capabilities:
 | **Ownership** | Entity `owners` field | Identify stakeholders to notify |
 | **Classifications** | Entity `tags` field | Detect PII, GDPR, and sensitive data |
 | **Tier/Criticality** | Entity `tier` tag | Identify business-critical assets |
-| **Data Contracts** | `GET /api/v1/dataQuality/testSuites` | Check contract/test compliance |
+| **Data Contracts** | `GET /api/v1/dataQuality/testSuites/search/list` | Check contract/test compliance |
 
 > **API Compatibility:** Supports both OpenMetadata 1.12+ (`owners` array) and older versions (`owner` singular).
 
@@ -328,13 +328,14 @@ LineageLock computes a deterministic score from 0–100 using 7 weighted factors
 
 ### Sensitive Tag Matching
 
-Tags are matched using **segment-boundary** matching (not substring). Each segment of the `tagFQN` is compared independently:
+Tags are matched using **segment-boundary** matching (not substring). The `tagFQN` is split on `.` and each segment is compared independently against configured keywords:
 
-- `PII.Sensitive` → Matches `PII` keyword ✅
-- `PII.None` → Does **not** match `PII` keyword (segment `None` ≠ any keyword) ✅
-- `DataSensitivity.Confidential` → Matches `Confidential` keyword ✅
+- `PII.Sensitive` → Matches keyword `PII` (first segment) ✅
+- `DataSensitivity.Confidential` → Matches keyword `Confidential` (second segment) ✅
+- `DataSensitivity.Confidential` → Does **not** match keyword `PII` (no segment equals `PII`) ✅
+- `PII.None` → **Does** match keyword `PII` (first segment matches) — configure your `sensitiveTags.keywords` accordingly
 
-This prevents false positives from tags like `PII.None` or `PII.NonSensitive`.
+This prevents false positives from unrelated tags (e.g., `DataTier.Bronze` won't match `PII`), while ensuring any tag in a sensitive classification (e.g., `PII.*`) is flagged.
 
 ### Error Handling
 
