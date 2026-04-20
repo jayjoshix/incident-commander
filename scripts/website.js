@@ -434,7 +434,99 @@ function getHTML() {
     html { scroll-behavior: smooth; }
 
     /* Hide sections by default for SPA feel */
+    /* Hide sections by default for SPA feel */
     .section-hidden { display: none; }
+
+    /* Architecture */
+    .arch-diagram { text-align: center; margin-bottom: 48px; }
+    .arch-row { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+    .arch-box {
+      padding: 24px 32px; border-radius: 16px; text-align: center; min-width: 200px;
+      background: var(--surface); border: 1px solid var(--border);
+    }
+    .arch-trigger { border-color: rgba(99,102,241,0.3); }
+    .arch-core { border-color: rgba(16,185,129,0.3); min-width: 400px; }
+    .arch-ext { border-color: rgba(245,158,11,0.3); }
+    .arch-icon { font-size: 2rem; margin-bottom: 8px; }
+    .arch-label { font-weight: 700; font-size: 1rem; color: #fff; }
+    .arch-desc { font-size: 0.8rem; color: var(--text-dim); margin-top: 4px; }
+    .arch-inner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+    .arch-module {
+      padding: 8px 12px; border-radius: 8px; font-size: 0.8rem; font-weight: 500;
+      background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.15); color: var(--green);
+    }
+    .arch-module span { margin-right: 4px; }
+    .arch-arrow-down { font-size: 2rem; color: var(--text-muted); text-align: center; padding: 8px 0; }
+    .arch-arrow-row { display: flex; justify-content: center; gap: 200px; }
+    .arch-components { margin-top: 24px; }
+
+    /* Integration */
+    .integration-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .int-card {
+      padding: 24px; border-radius: 16px;
+      background: var(--surface); border: 1px solid var(--border);
+      transition: all 0.2s;
+    }
+    .int-card:hover { border-color: var(--border-hover); transform: translateY(-2px); }
+    .int-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .int-icon { font-size: 1.8rem; }
+    .int-name { font-weight: 700; color: #fff; font-size: 1rem; }
+    .int-endpoint { font-size: 0.75rem; color: var(--accent); background: rgba(99,102,241,0.1); padding: 2px 8px; border-radius: 4px; }
+    .int-card p { font-size: 0.85rem; color: var(--text-dim); line-height: 1.5; }
+    .int-card code { font-size: 0.8rem; background: rgba(255,255,255,0.05); padding: 1px 4px; border-radius: 3px; color: var(--accent); }
+
+    /* Config */
+    .config-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .config-code {
+      background: #0d1117; border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; overflow: hidden;
+    }
+    .code-header {
+      padding: 10px 16px; background: rgba(255,255,255,0.04); border-bottom: 1px solid rgba(255,255,255,0.06);
+      display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-dim);
+    }
+    .code-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .code-dot.red { background: #ff5f56; }
+    .code-dot.yellow { background: #ffbd2e; }
+    .code-dot.green { background: #27c93f; }
+    .config-code pre { padding: 16px; margin: 0; overflow-x: auto; }
+    .config-code code { font-size: 0.8rem; color: #e6edf3; line-height: 1.5; }
+    .config-reference code { font-size: 0.8rem; background: rgba(255,255,255,0.05); padding: 1px 6px; border-radius: 3px; color: var(--accent); }
+
+    /* GitHub Action */
+    .action-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .action-steps { }
+    .setup-step {
+      display: flex; align-items: flex-start; gap: 16px;
+      padding: 16px 0; border-bottom: 1px solid var(--border);
+    }
+    .setup-step:last-of-type { border-bottom: none; }
+    .step-num {
+      width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--accent); color: #fff; font-weight: 700; font-size: 0.9rem;
+    }
+    .setup-step div { font-size: 0.9rem; line-height: 1.5; }
+    .setup-step strong { color: #fff; }
+    .setup-step code { font-size: 0.8rem; background: rgba(255,255,255,0.05); padding: 1px 6px; border-radius: 3px; color: var(--accent); }
+    .action-outcomes { display: flex; flex-direction: column; gap: 8px; }
+    .outcome {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; border-radius: 10px; font-size: 0.9rem;
+    }
+    .outcome.pass { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.15); }
+    .outcome.warn { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.15); }
+    .outcome.fail { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.15); }
+
+    /* Nav overflow for many links */
+    .nav-links { gap: 20px !important; flex-wrap: wrap; }
+    .nav-links a { font-size: 0.82rem !important; }
+
+    @media (max-width: 900px) {
+      .integration-cards { grid-template-columns: 1fr; }
+      .config-layout, .action-layout { grid-template-columns: 1fr; }
+      .arch-core { min-width: auto; }
+      .arch-arrow-row { gap: 40px; }
+    }
   </style>
 </head>
 <body>
@@ -451,7 +543,11 @@ function getHTML() {
         <a href="#" onclick="showSection('hero')">Home</a>
         <a href="#" onclick="showSection('features')">Features</a>
         <a href="#" onclick="showSection('how')">How It Works</a>
+        <a href="#" onclick="showSection('architecture')">Architecture</a>
+        <a href="#" onclick="showSection('integration')">Integration</a>
         <a href="#" onclick="showSection('scoring')">Scoring</a>
+        <a href="#" onclick="showSection('config')">Config</a>
+        <a href="#" onclick="showSection('action')">GitHub Action</a>
         <a href="#" onclick="showSection('dashboard')" class="nav-cta">🚀 Try It Live</a>
       </div>
     </nav>
@@ -538,6 +634,278 @@ function getHTML() {
           <tr><td>👤 No Owner</td><td class="weight">+10</td><td>No owner assigned</td></tr>
         </tbody>
       </table>
+    </section>
+
+    <!-- Architecture -->
+    <section id="architecture">
+      <h2 class="section-title">Architecture</h2>
+      <p class="section-sub">How LineageLock connects to your data stack</p>
+      
+      <div class="arch-diagram">
+        <div class="arch-row">
+          <div class="arch-box arch-trigger">
+            <div class="arch-icon">📝</div>
+            <div class="arch-label">Pull Request</div>
+            <div class="arch-desc">Developer changes dbt model, SQL file, or schema YAML</div>
+          </div>
+        </div>
+        <div class="arch-arrow-down">↓</div>
+        <div class="arch-row">
+          <div class="arch-box arch-core">
+            <div class="arch-icon">🔒</div>
+            <div class="arch-label">LineageLock Engine</div>
+            <div class="arch-inner-grid">
+              <div class="arch-module"><span>🔍</span> Asset Resolver</div>
+              <div class="arch-module"><span>📊</span> Risk Scorer</div>
+              <div class="arch-module"><span>📋</span> Report Renderer</div>
+              <div class="arch-module"><span>⚙️</span> Config Loader</div>
+            </div>
+          </div>
+        </div>
+        <div class="arch-arrow-row">
+          <div class="arch-arrow-down">↓</div>
+          <div class="arch-arrow-down">↓</div>
+        </div>
+        <div class="arch-row arch-bottom">
+          <div class="arch-box arch-ext">
+            <div class="arch-icon">🌐</div>
+            <div class="arch-label">OpenMetadata API</div>
+            <div class="arch-desc">Tables, lineage, tags, ownership, contracts</div>
+          </div>
+          <div class="arch-box arch-ext">
+            <div class="arch-icon">🐙</div>
+            <div class="arch-label">GitHub API</div>
+            <div class="arch-desc">PR files, comments, status checks</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="arch-components">
+        <h3 style="font-size:1.2rem;font-weight:700;margin-bottom:16px;color:#fff;text-align:center">Core Components</h3>
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon">🔍</div>
+            <h3>Asset Resolver</h3>
+            <p>Maps file paths (models/marts/fact_orders.sql) to OpenMetadata FQNs using configurable naming conventions and explicit mappings.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🌐</div>
+            <h3>OpenMetadata Client</h3>
+            <p>REST API client with automatic response normalization, v1.12+ compatibility (owners array), 404 handling, and error propagation.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📊</div>
+            <h3>Risk Scoring Engine</h3>
+            <p>Deterministic 0-100 scorer with 7 weighted factors. Segment-boundary tag matching prevents false positives.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">📋</div>
+            <h3>Report Renderer</h3>
+            <p>Generates rich Markdown PR comments with collapsible sections, risk factor tables, and stakeholder notifications.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">⚙️</div>
+            <h3>Config Loader</h3>
+            <p>Merges .lineagelock.json, environment variables, and GitHub Action inputs with sensible defaults.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon">🤖</div>
+            <h3>Action Orchestrator</h3>
+            <p>GitHub Action entry point that wires everything together — detects changed files, runs analysis, posts comments, sets exit codes.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- OpenMetadata Integration -->
+    <section id="integration">
+      <h2 class="section-title">OpenMetadata Integration</h2>
+      <p class="section-sub">Deep integration with 6 OpenMetadata capabilities</p>
+
+      <div class="integration-cards">
+        <div class="int-card">
+          <div class="int-header">
+            <span class="int-icon">📡</span>
+            <div>
+              <div class="int-name">Entity Resolution</div>
+              <code class="int-endpoint">GET /api/v1/tables/name/{fqn}</code>
+            </div>
+          </div>
+          <p>Resolves changed file paths to OpenMetadata table entities. Fetches columns, owners, tags, tier, and test suite metadata in a single call using the <code>fields</code> parameter.</p>
+        </div>
+        <div class="int-card">
+          <div class="int-header">
+            <span class="int-icon">🌳</span>
+            <div>
+              <div class="int-name">Lineage Graph</div>
+              <code class="int-endpoint">GET /api/v1/lineage/table/{id}</code>
+            </div>
+          </div>
+          <p>Traverses the full lineage DAG with configurable depth (upstream=2, downstream=3). Categorizes downstream nodes by type: tables, dashboards, ML models, pipelines.</p>
+        </div>
+        <div class="int-card">
+          <div class="int-header">
+            <span class="int-icon">👥</span>
+            <div>
+              <div class="int-name">Ownership</div>
+              <code class="int-endpoint">Entity owners/owner field</code>
+            </div>
+          </div>
+          <p>Extracts owner information for stakeholder notification. Supports both v1.12+ <code>owners[]</code> array and legacy <code>owner</code> singular field for backward compatibility.</p>
+        </div>
+        <div class="int-card">
+          <div class="int-header">
+            <span class="int-icon">🏷️</span>
+            <div>
+              <div class="int-name">Classifications & Tags</div>
+              <code class="int-endpoint">Entity tags field</code>
+            </div>
+          </div>
+          <p>Scans entity tags using segment-boundary matching. Detects PII, GDPR, Confidential, PHI, PCI, and DataSensitivity classifications without false positives from unrelated tag hierarchies.</p>
+        </div>
+        <div class="int-card">
+          <div class="int-header">
+            <span class="int-icon">🎯</span>
+            <div>
+              <div class="int-name">Tier / Criticality</div>
+              <code class="int-endpoint">Entity tier tag</code>
+            </div>
+          </div>
+          <p>Identifies business-critical assets by tier classification. Tier 1 and Tier 2 assets receive +20 risk points, ensuring high-value data gets extra review scrutiny.</p>
+        </div>
+        <div class="int-card">
+          <div class="int-header">
+            <span class="int-icon">📋</span>
+            <div>
+              <div class="int-name">Data Contracts</div>
+              <code class="int-endpoint">GET /api/v1/dataQuality/testSuites/search/list</code>
+            </div>
+          </div>
+          <p>Queries test suite results to check contract compliance. Failing tests trigger the highest-weight factor (+40 points). Only 404 is treated as "no contract" — auth/server errors propagate.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Configuration -->
+    <section id="config">
+      <h2 class="section-title">Configuration</h2>
+      <p class="section-sub">Customize LineageLock via .lineagelock.json in your repo root</p>
+
+      <div class="config-layout">
+        <div class="config-code">
+          <div class="code-header"><span class="code-dot red"></span><span class="code-dot yellow"></span><span class="code-dot green"></span> .lineagelock.json</div>
+          <pre><code>{
+  "paths": {
+    "sql": ["models/**/*.sql"],
+    "yaml": ["models/**/*.yml"]
+  },
+  "naming": {
+    "service": "acme_nexus_analytics",
+    "database": "ANALYTICS",
+    "schema": "MARTS",
+    "nameStrategy": "filename"
+  },
+  "mappings": [
+    {
+      "filePattern": "models/staging/**/*.sql",
+      "fqn": "acme_nexus_analytics.ANALYTICS.STAGING.{name}"
+    }
+  ],
+  "sensitiveTags": {
+    "keywords": ["PII", "GDPR", "Confidential"]
+  },
+  "criticalTiers": ["Tier1", "Tier2"],
+  "failOnUnresolved": false,
+  "thresholds": {
+    "warn": 30,
+    "fail": 70
+  }
+}</code></pre>
+        </div>
+        <div class="config-reference">
+          <h3 style="font-weight:700;margin-bottom:16px;color:#fff">Configuration Reference</h3>
+          <table class="scoring-table">
+            <thead><tr><th>Key</th><th>Description</th><th>Default</th></tr></thead>
+            <tbody>
+              <tr><td><code>naming.service</code></td><td>OpenMetadata service name</td><td>warehouse</td></tr>
+              <tr><td><code>naming.database</code></td><td>Database name</td><td>analytics</td></tr>
+              <tr><td><code>naming.schema</code></td><td>Schema name</td><td>public</td></tr>
+              <tr><td><code>mappings</code></td><td>Explicit file → FQN mappings</td><td>[]</td></tr>
+              <tr><td><code>sensitiveTags</code></td><td>Tag keywords to flag</td><td>PII, GDPR...</td></tr>
+              <tr><td><code>criticalTiers</code></td><td>Tiers considered critical</td><td>Tier1, Tier2</td></tr>
+              <tr><td><code>failOnUnresolved</code></td><td>Fail if entities not found</td><td>false</td></tr>
+              <tr><td><code>thresholds.warn</code></td><td>Warning score threshold</td><td>30</td></tr>
+              <tr><td><code>thresholds.fail</code></td><td>Failure score threshold</td><td>70</td></tr>
+            </tbody>
+          </table>
+          <h3 style="font-weight:700;margin:24px 0 16px;color:#fff">Environment Variables</h3>
+          <table class="scoring-table">
+            <thead><tr><th>Variable</th><th>Description</th></tr></thead>
+            <tbody>
+              <tr><td><code>OPENMETADATA_URL</code></td><td>OpenMetadata server URL</td></tr>
+              <tr><td><code>OPENMETADATA_TOKEN</code></td><td>JWT authentication token</td></tr>
+              <tr><td><code>GITHUB_TOKEN</code></td><td>GitHub token (auto in Actions)</td></tr>
+              <tr><td><code>LINEAGELOCK_WARN_THRESHOLD</code></td><td>Override warning threshold</td></tr>
+              <tr><td><code>LINEAGELOCK_FAIL_THRESHOLD</code></td><td>Override failure threshold</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- GitHub Action -->
+    <section id="action">
+      <h2 class="section-title">GitHub Action</h2>
+      <p class="section-sub">Drop-in workflow for any repository with data models</p>
+
+      <div class="action-layout">
+        <div class="config-code">
+          <div class="code-header"><span class="code-dot red"></span><span class="code-dot yellow"></span><span class="code-dot green"></span> .github/workflows/lineagelock.yml</div>
+          <pre><code>name: LineageLock PR Guard
+
+on:
+  pull_request:
+    paths:
+      - 'models/**'
+      - 'sql/**'
+      - 'schemas/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  lineagelock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm run build
+      - uses: ./
+        with:
+          github-token: $&#123;&#123; secrets.GITHUB_TOKEN &#125;&#125;
+          openmetadata-url: $&#123;&#123; secrets.OPENMETADATA_URL &#125;&#125;
+          openmetadata-token: $&#123;&#123; secrets.OPENMETADATA_TOKEN &#125;&#125;
+          warn-threshold: '30'
+          fail-threshold: '70'</code></pre>
+        </div>
+        <div class="action-steps">
+          <h3 style="font-weight:700;margin-bottom:20px;color:#fff">Setup Steps</h3>
+          <div class="setup-step"><span class="step-num">1</span><div><strong>Add secrets</strong><br>Go to Settings → Secrets → Add <code>OPENMETADATA_URL</code> and <code>OPENMETADATA_TOKEN</code></div></div>
+          <div class="setup-step"><span class="step-num">2</span><div><strong>Add config</strong><br>Create <code>.lineagelock.json</code> with your service, database, and schema names</div></div>
+          <div class="setup-step"><span class="step-num">3</span><div><strong>Add workflow</strong><br>Copy the YAML into <code>.github/workflows/lineagelock.yml</code></div></div>
+          <div class="setup-step"><span class="step-num">4</span><div><strong>Open a PR</strong><br>Change any data model file — LineageLock posts a risk comment automatically</div></div>
+          <h3 style="font-weight:700;margin:24px 0 16px;color:#fff">What Happens on PR</h3>
+          <div class="action-outcomes">
+            <div class="outcome pass"><span>🟢</span> Score &lt; 30 → <strong>Pass</strong> — safe to merge</div>
+            <div class="outcome warn"><span>🟡</span> Score 30-69 → <strong>Warn</strong> — review recommended</div>
+            <div class="outcome fail"><span>🔴</span> Score ≥ 70 → <strong>Fail</strong> — blocks merge</div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <!-- Dashboard -->
