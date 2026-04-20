@@ -123,9 +123,13 @@ export class OpenMetadataClient {
           description: t.description,
         })),
       };
-    } catch (err) {
-      // Fallback: contract endpoint not available in this version
-      return { hasContract: false, failingTests: 0, totalTests: 0 };
+    } catch (err: any) {
+      // Only treat 404 / not-found as "no contract"
+      if (this.isNotFound(err)) {
+        return { hasContract: false, failingTests: 0, totalTests: 0 };
+      }
+      // Auth, network, server errors should propagate — not silently under-report risk
+      throw this.wrapError('getDataContract', tableFQN, err);
     }
   }
 

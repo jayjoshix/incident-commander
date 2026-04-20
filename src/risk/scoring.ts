@@ -104,8 +104,14 @@ export function scoreEntities(
     ? Math.max(...assessments.map((a) => a.score))
     : 0;
 
+  const unresolvedCount = entities.filter((e) => !e.found).length;
   const overallLevel = scoreToLevel(maxScore);
-  const decision = computeDecision(maxScore, config);
+  let decision = computeDecision(maxScore, config);
+
+  // If failOnUnresolved is enabled and there are unresolved entities, escalate to fail
+  if (config.failOnUnresolved && unresolvedCount > 0) {
+    decision = 'fail';
+  }
 
   // Aggregate summary
   let totalDownstream = 0;
@@ -215,9 +221,14 @@ function evaluateSensitiveTags(
   maxPoints: number
 ): RiskFactor {
   const tags = collectAllTags(entity);
-  const sensitiveMatches = tags.filter((tag) =>
-    keywords.some((kw) => tag.tagFQN.toLowerCase().includes(kw.toLowerCase()))
-  );
+  // Use segment-boundary matching: split tagFQN on '.' and match each segment
+  // This prevents false positives like PII.NonSensitive matching 'PII' keyword
+  const sensitiveMatches = tags.filter((tag) => {
+    const segments = tag.tagFQN.split('.');
+    return keywords.some((kw) =>
+      segments.some((seg) => seg.toLowerCase() === kw.toLowerCase())
+    );
+  });
 
   if (sensitiveMatches.length > 0) {
     return {

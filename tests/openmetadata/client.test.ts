@@ -125,13 +125,20 @@ describe('OpenMetadataClient', () => {
   });
 
   describe('getDataContract', () => {
-    it('should return no contract when endpoint fails', async () => {
+    it('should return no contract when endpoint returns 404', async () => {
       const mockGet = (mockedAxios.create as any)().get;
-      mockGet.mockRejectedValueOnce(new Error('Not found'));
+      mockGet.mockRejectedValueOnce({ response: { status: 404 } });
 
       const result = await client.getDataContract('test.table');
       expect(result.hasContract).toBe(false);
       expect(result.failingTests).toBe(0);
+    });
+
+    it('should throw on non-404 errors (auth, network, server)', async () => {
+      const mockGet = (mockedAxios.create as any)().get;
+      mockGet.mockRejectedValueOnce({ response: { status: 500, data: { message: 'Internal Server Error' } } });
+
+      await expect(client.getDataContract('test.table')).rejects.toThrow();
     });
   });
 

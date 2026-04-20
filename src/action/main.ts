@@ -22,7 +22,12 @@ import { getPRContext, getChangedFiles, postOrUpdateComment } from './github';
 
 async function run(): Promise<void> {
   try {
-    // 1. Load configuration
+    // 1. Wire action-level threshold inputs into env vars for config loader
+    const warnInput = core.getInput('warn-threshold');
+    const failInput = core.getInput('fail-threshold');
+    if (warnInput) process.env.LINEAGELOCK_WARN_THRESHOLD = warnInput;
+    if (failInput) process.env.LINEAGELOCK_FAIL_THRESHOLD = failInput;
+
     const configPath = core.getInput('config-path') || undefined;
     const config = loadConfig(configPath);
     core.info('📋 Configuration loaded');
