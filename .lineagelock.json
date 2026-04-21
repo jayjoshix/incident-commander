@@ -41,5 +41,24 @@
     "highDownstreamCount": 10,
     "noOwner": 10
   },
-  "failOnUnresolved": false
+  "failOnUnresolved": false,
+  "automation": {
+    "reviewers": {
+      "enabled": true,
+      "ownerMapping": {
+        "data-engineering": "data-eng-lead",
+        "analytics-team": "analytics-lead"
+      },
+      "maxReviewers": 3
+    },
+    "labels": {
+      "enabled": true
+    },
+    "notifications": {
+      "minLevel": "HIGH",
+      "slackWebhookUrl": "",
+      "teamsWebhookUrl": "",
+      "webhookUrl": ""
+    }
+  }
 }

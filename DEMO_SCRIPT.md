@@ -16,7 +16,7 @@ No OpenMetadata instance needed — demo mode uses built-in fixtures.
 
 > "Data teams change dbt models and SQL files every day in PRs. But nobody knows what breaks downstream. A column rename in `fact_orders` could silently break the Revenue Dashboard, violate a data contract, or expose PII to a downstream consumer."
 >
-> "Code review catches code bugs. But it doesn't catch data impact. LineageLock does."
+> "Code review catches code bugs. But it doesn't catch data impact. **LineageLock turns OpenMetadata from a passive catalog into active merge-time governance.**"
 
 ---
 
@@ -32,7 +32,9 @@ npx ts-node src/cli.ts demo --scenario high-risk
 
 > "Here's what happens when someone changes `fact_orders.sql` — a Tier 1 table.
 >
-> LineageLock resolves the file to an OpenMetadata entity, fetches lineage, and scores 7 risk factors:
+> LineageLock **parses the PR patch** and detects 2 changed columns: `total_amount` (modified) and `discount_pct` (added).
+>
+> It resolves the file to an OpenMetadata entity, fetches lineage, and scores 7 risk factors:
 >
 > - **Contract Violation** — a data quality test is failing (+40)
 > - **Tier 1 Critical Asset** — this is a source-of-truth table (+20)
@@ -41,9 +43,13 @@ npx ts-node src/cli.ts demo --scenario high-risk
 > - **1 ML Model impacted** — the churn predictor (+10)
 > - **7 downstream entities total** — above the threshold (+10)
 >
+> Then the **Column-Level Impact** section shows exactly which downstream columns are affected by the `total_amount` change — tracing through OpenMetadata's column lineage.
+>
+> And the **Glossary Terms** section flags that this entity is linked to `Revenue` and `Customer Lifetime Value` — business-critical terms.
+>
 > Final score: **100/100 CRITICAL — PR blocked.**
 >
-> The Data Engineering Team is flagged as the owner to notify."
+> The Data Engineering Team is flagged as the owner, and LineageLock would automatically request their review and apply labels like `lineagelock:tier1-change` and `lineagelock:pii-impact`."
 
 ---
 
@@ -66,13 +72,17 @@ npx ts-node src/cli.ts demo --scenario low-risk
 > "Under the hood, LineageLock:
 >
 > 1. Runs as a GitHub Action on every PR that touches data models
-> 2. Resolves files to OpenMetadata entities using configurable naming conventions
-> 3. Hits the OpenMetadata REST API for lineage, ownership, tags, and contracts
-> 4. Computes a deterministic risk score with configurable weights
-> 5. Posts a rich Markdown comment on the PR
-> 6. Blocks the merge if the risk is too high
+> 2. **Parses PR patches** to detect exactly which columns changed
+> 3. Resolves files to OpenMetadata entities using configurable naming conventions
+> 4. Hits the OpenMetadata REST API for lineage, column lineage, ownership, tags, glossary terms, and contracts
+> 5. **Intersects changed columns with column-level lineage** for precise downstream impact
+> 6. Computes a deterministic risk score with configurable weights
+> 7. **Escalates PR-level risk** when multiple entities compound risk
+> 8. Posts a rich Markdown comment on the PR
+> 9. **Requests reviewers** from OpenMetadata owners, **applies risk labels**, and **sends Slack/Teams notifications**
+> 10. Blocks the merge if the risk is too high
 >
-> Everything is configurable — thresholds, weights, path patterns, entity mappings."
+> Everything is configurable — thresholds, weights, path patterns, entity mappings, automation."
 
 ---
 
@@ -80,11 +90,13 @@ npx ts-node src/cli.ts demo --scenario low-risk
 
 > "This isn't a dashboard clone. It's a developer tool that lives in the PR workflow.
 >
-> We use 6 OpenMetadata capabilities:
+> We use **8 OpenMetadata capabilities**:
 > - **Entity resolution** via table FQN lookup
 > - **Lineage graph** to compute blast radius
-> - **Ownership** to identify stakeholders
-> - **Tags/Classifications** to detect PII and GDPR
+> - **Column-level lineage** to trace changed columns through downstream entities
+> - **Ownership** to route PR reviewers automatically
+> - **Tags/Classifications** to detect PII and GDPR (with false-positive filtering)
+> - **Glossary terms** to flag business-critical term exposure
 > - **Tier** to identify critical assets
 > - **Data contracts** via test suite status
 >
@@ -111,4 +123,7 @@ npx ts-node src/cli.ts demo --json
 export OPENMETADATA_URL=http://localhost:8585
 export OPENMETADATA_TOKEN=your-token
 npx ts-node src/cli.ts analyze --changed-file models/fact_orders.sql
+
+# Website dashboard (live OpenMetadata)
+npm run website
 ```
