@@ -98,10 +98,10 @@ program
         console.log('\n' + '═'.repeat(60));
         console.log(renderReport(report, entities, emptyPatches, aggregate));
         console.log('═'.repeat(60));
-        console.log('\n' + renderCompactSummary(report));
+        console.log('\n' + renderCompactSummary(report, aggregate));
       }
 
-      process.exit(report.decision === 'fail' ? 1 : 0);
+      process.exit(aggregate.escalatedDecision === 'fail' ? 1 : 0);
     } catch (err: any) {
       console.error(`❌ Error: ${err.message}`);
       process.exit(1);
@@ -176,7 +176,7 @@ program
       console.log(renderReport(report, entities, demoPatchAnalyses, aggregate));
       console.log('═'.repeat(60));
       console.log('');
-      console.log(renderCompactSummary(report));
+      console.log(renderCompactSummary(report, aggregate));
 
       if (aggregate.factors.length > 0) {
         console.log(`\n⚡ PR-Level Escalation: ${aggregate.maxEntityScore} → ${aggregate.aggregateScore}`);

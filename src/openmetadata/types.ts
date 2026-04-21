@@ -49,6 +49,8 @@ export interface Column {
 export interface DataContract {
   /** Whether a contract/test suite exists */
   hasContract: boolean;
+  /** Source of contract data: 'official' (OM 1.5+ /api/v1/dataContracts) or 'test-suite' (proxy) */
+  contractSource?: 'official' | 'test-suite';
   /** Name or FQN of the test suite if present */
   testSuiteName?: string;
   /** Number of tests that are currently failing */

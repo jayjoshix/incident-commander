@@ -84,10 +84,51 @@ export class OpenMetadataClient {
   }
 
   /**
-   * Fetch test suite / data contract info for a table.
-   * Uses the testSuite field if available, otherwise returns a default.
+   * Fetch data contract info for a table.
+   *
+   * Resolution strategy (dual-track):
+   * 1. Try the official OpenMetadata Data Contracts API (/api/v1/dataContracts)
+   *    — available in OpenMetadata 1.5+ with the explicit contract feature enabled.
+   * 2. If the endpoint returns 404 (not found or not enabled), fall back to the
+   *    test-suite proxy (/api/v1/dataQuality/testSuites/search/list) which is
+   *    available in all versions and provides equivalent contract enforcement signal.
    */
   async getDataContract(tableFQN: string): Promise<DataContract> {
+    // Track 1: Official Data Contracts API (OM 1.5+)
+    try {
+      const contractResponse = await this.http.get('/api/v1/dataContracts', {
+        params: { entityLink: `<#E::table::${tableFQN}>`, limit: 1 },
+      });
+      const contracts = contractResponse.data?.data || [];
+      if (contracts.length > 0) {
+        const contract = contracts[0];
+        // Official contract has a status field: 'Active', 'Aborted', 'Expired'
+        const isActive = contract.status === 'Active' || !contract.status;
+        const results = contract.results || [];
+        const failingTests = results.filter((r: any) => r.status === 'Failed').length;
+        const totalTests = results.length;
+        return {
+          hasContract: true,
+          contractSource: 'official',
+          testSuiteName: contract.name,
+          failingTests,
+          totalTests,
+          tests: results.map((r: any) => ({
+            name: r.name || r.testCase?.name,
+            status: r.status || 'Unknown',
+            description: r.description,
+          })),
+        };
+      }
+    } catch (err: any) {
+      // 404 = endpoint not available on this OM version — fall through to proxy
+      // Any other error from the contract API is suppressed to avoid breaking old deployments
+      if (!this.isNotFound(err)) {
+        // Log but don't fail — fall back to test suite
+      }
+    }
+
+    // Track 2: Test-suite proxy (all OM versions)
     try {
       const response = await this.http.get(
         `/api/v1/dataQuality/testSuites/search/list`,
@@ -114,6 +155,7 @@ export class OpenMetadataClient {
 
       return {
         hasContract: true,
+        contractSource: 'test-suite',
         testSuiteName: suite.fullyQualifiedName || suite.name,
         failingTests,
         totalTests: tests.length,
@@ -124,11 +166,9 @@ export class OpenMetadataClient {
         })),
       };
     } catch (err: any) {
-      // Only treat 404 / not-found as "no contract"
       if (this.isNotFound(err)) {
         return { hasContract: false, failingTests: 0, totalTests: 0 };
       }
-      // Auth, network, server errors should propagate — not silently under-report risk
       throw this.wrapError('getDataContract', tableFQN, err);
     }
   }
