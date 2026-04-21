@@ -13,7 +13,9 @@ import { loadConfig } from './config/loader';
 import { OpenMetadataClient } from './openmetadata/client';
 import { resolveFiles, filterDataModelFiles, resolveFileToFQN } from './resolver/asset-resolver';
 import { scoreEntities } from './risk/scoring';
+import { computePRAggregate } from './risk/pr-aggregate';
 import { renderReport, renderCompactSummary } from './report/renderer';
+import { parsePatch, PatchAnalysis } from './diff/patch-parser';
 import { ResolvedEntity } from './openmetadata/types';
 import { DEMO_ENTITIES, DEMO_CHANGED_FILES } from './fixtures/demo-data';
 
@@ -79,14 +81,22 @@ program
         }
       }
 
-      // Score and render
+      // Score, aggregate, and render
+      const emptyPatches: PatchAnalysis[] = entities.map(e => ({
+        filePath: e.filePath,
+        changedColumns: [],
+        isStructuralChange: false,
+        changeDescription: 'No patch data in CLI mode',
+      }));
+
       const report = scoreEntities(entities, config);
+      const aggregate = computePRAggregate(report, entities, emptyPatches, config);
 
       if (opts.json) {
-        console.log(JSON.stringify(report, null, 2));
+        console.log(JSON.stringify({ report, aggregate }, null, 2));
       } else {
         console.log('\n' + '═'.repeat(60));
-        console.log(renderReport(report, entities));
+        console.log(renderReport(report, entities, emptyPatches, aggregate));
         console.log('═'.repeat(60));
         console.log('\n' + renderCompactSummary(report));
       }
@@ -134,17 +144,46 @@ program
     }
     console.log('');
 
+    // Simulate patch analysis for demo
+    const demoPatchAnalyses: PatchAnalysis[] = entities.map(e => {
+      if (e.filePath === 'models/marts/fact_orders.sql') {
+        return {
+          filePath: e.filePath,
+          changedColumns: [
+            { name: 'total_amount', changeType: 'modified' as const, confidence: 'high' as const, source: 'sql-select' as const },
+            { name: 'discount_pct', changeType: 'added' as const, confidence: 'high' as const, source: 'sql-select' as const },
+          ],
+          isStructuralChange: true,
+          changeDescription: '2 column(s) potentially affected',
+        };
+      }
+      return {
+        filePath: e.filePath,
+        changedColumns: [],
+        isStructuralChange: false,
+        changeDescription: 'No structural changes detected',
+      };
+    });
+
     const report = scoreEntities(entities, config);
+    const aggregate = computePRAggregate(report, entities, demoPatchAnalyses, config);
 
     if (opts.json) {
-      console.log(JSON.stringify(report, null, 2));
+      console.log(JSON.stringify({ report, aggregate }, null, 2));
     } else {
       console.log('═'.repeat(60));
       console.log('');
-      console.log(renderReport(report, entities));
+      console.log(renderReport(report, entities, demoPatchAnalyses, aggregate));
       console.log('═'.repeat(60));
       console.log('');
       console.log(renderCompactSummary(report));
+
+      if (aggregate.factors.length > 0) {
+        console.log(`\n⚡ PR-Level Escalation: ${aggregate.maxEntityScore} → ${aggregate.aggregateScore}`);
+        for (const f of aggregate.factors) {
+          console.log(`   +${f.escalation} — ${f.detail}`);
+        }
+      }
     }
   });
 

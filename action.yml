@@ -32,11 +32,13 @@ inputs:
 
 outputs:
   risk_score:
-    description: 'Highest risk score across all changed entities (0-100)'
+    description: 'PR-level aggregate risk score (0-100), including escalation factors'
   risk_level:
     description: 'Overall risk level (LOW, MEDIUM, HIGH, CRITICAL)'
   decision:
     description: 'Action decision (pass, warn, fail)'
+  changed_columns:
+    description: 'Number of changed columns detected from PR patches'
 
 runs:
   using: 'node20'
