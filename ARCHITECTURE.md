@@ -46,7 +46,8 @@ LineageLock is structured as four layers: a **reusable TypeScript library**, a *
 │  │  GET /api/v1/tables/name/{fqn}        Entity metadata          │   │
 │  │  GET /api/v1/lineage/table/{id}       Lineage graph            │   │
 │  │  ├─ edge.columnLineage                Column-level lineage     │   │
-│  │  GET /api/v1/dataQuality/testSuites   Contract validation      │   │
+│  │  GET /api/v1/dataContracts             Contract validation      │   │
+│  │  (fallback: /api/v1/dataQuality/…)      (dual-track, OM 1.5+)   │   │
 │  │  Entity tags (source: Glossary)       Glossary terms           │   │
 │  │  Entity owners[]                      Reviewer routing         │   │
 │  │  Entity tags (PII, GDPR, etc.)        Classification           │   │
@@ -161,7 +162,10 @@ PR Event
   │     │     ├── GET /api/v1/lineage/table/{id}
   │     │     │     → upstream & downstream graph + column-level lineage
   │     │     │
-  │     │     └── GET /api/v1/dataQuality/testSuites/search/list
+  │     │     └── GET /api/v1/dataContracts (OM 1.5+)
+  │     │           → official contract status, results
+  │     │         fallback: GET /api/v1/dataQuality/testSuites/search/list
+  │     │           → test suite results as contract proxy
   │     │           → contract test results
   │     │
   │     └── Categorize downstream nodes:

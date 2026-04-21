@@ -58,7 +58,7 @@ LineageLock uses 8 OpenMetadata capabilities through the official REST API:
 | 5 | **Classifications/Tags** | Entity & column `tags` fields | Detect PII, GDPR, and sensitive data exposure risks (with false-positive filtering for PII.None) |
 | 6 | **Glossary Terms** | Entity tags with `source: Glossary` | Detect changes touching business-critical glossary terms (Revenue, Customer Data) |
 | 7 | **Tier/Criticality** | Entity `tier` tag | Identify changes to business-critical Tier 1/Tier 2 assets |
-| 8 | **Data Contracts** | `GET /api/v1/dataQuality/testSuites/search/list` | Check if data quality tests are passing or failing |
+| 8 | **Data Contracts** | `GET /api/v1/dataContracts` (OM 1.5+) with fallback to `GET /api/v1/dataQuality/testSuites/search/list` | Dual-track contract validation — uses official API when available, falls back gracefully to test-suite proxy |
 
 This is not a superficial integration. LineageLock depends on OpenMetadata as its core data source — without it, there is no blast radius, no governance context, and no risk score.
 
@@ -208,7 +208,7 @@ See `DEMO_SCRIPT.md` for a complete 3-minute presentation script.
 | Lineage graph fetching | ✅ Real | Uses `/api/v1/lineage/table/{id}` |
 | Column-level lineage | ✅ Real | Extracts `columnLineage` from edges |
 | Glossary term detection | ✅ Real | Filters tags by `source: Glossary` |
-| Data contract validation | ✅ Real | Uses `/api/v1/dataQuality/testSuites/search/list` |
+| Data contract validation | ✅ Real | Dual-track: official `/api/v1/dataContracts` (OM 1.5+) → fallback to `/api/v1/dataQuality/testSuites/search/list` |
 | Patch parser (changed columns) | ✅ Real | Deterministic SQL/YAML diff analysis |
 | PR aggregate risk | ✅ Real | Compound risk escalation |
 | Risk scoring engine | ✅ Real | Deterministic, fully functional |

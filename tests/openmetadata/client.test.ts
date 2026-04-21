@@ -125,8 +125,11 @@ describe('OpenMetadataClient', () => {
   });
 
   describe('getDataContract', () => {
-    it('should return no contract when endpoint returns 404', async () => {
+    it('should return no contract when both endpoints return 404', async () => {
       const mockGet = (mockedAxios.create as any)().get;
+      // Call 1: official /api/v1/dataContracts → 404 (endpoint not available)
+      mockGet.mockRejectedValueOnce({ response: { status: 404 } });
+      // Call 2: fallback /api/v1/dataQuality/testSuites → 404 (no suite found)
       mockGet.mockRejectedValueOnce({ response: { status: 404 } });
 
       const result = await client.getDataContract('test.table');
@@ -134,8 +137,59 @@ describe('OpenMetadataClient', () => {
       expect(result.failingTests).toBe(0);
     });
 
-    it('should throw on non-404 errors (auth, network, server)', async () => {
+    it('should return contract from official API when available', async () => {
       const mockGet = (mockedAxios.create as any)().get;
+      // Call 1: official API returns a contract
+      mockGet.mockResolvedValueOnce({
+        data: {
+          data: [{
+            name: 'test_contract',
+            status: 'Active',
+            results: [
+              { status: 'Success', name: 'row_count_check' },
+              { status: 'Failed', name: 'null_check' },
+            ],
+          }],
+        },
+      });
+
+      const result = await client.getDataContract('test.table');
+      expect(result.hasContract).toBe(true);
+      expect(result.contractSource).toBe('official');
+      expect(result.failingTests).toBe(1);
+      expect(result.totalTests).toBe(2);
+    });
+
+    it('should fall back to test-suite when official API is unavailable', async () => {
+      const mockGet = (mockedAxios.create as any)().get;
+      // Call 1: official API → 404
+      mockGet.mockRejectedValueOnce({ response: { status: 404 } });
+      // Call 2: test-suite proxy returns data
+      mockGet.mockResolvedValueOnce({
+        data: {
+          data: [{
+            name: 'test_suite',
+            fullyQualifiedName: 'test.table.testSuite',
+            tests: [
+              { name: 'row_count', testCaseResult: { testCaseStatus: 'Success' } },
+              { name: 'null_check', testCaseResult: { testCaseStatus: 'Failed' } },
+            ],
+          }],
+        },
+      });
+
+      const result = await client.getDataContract('test.table');
+      expect(result.hasContract).toBe(true);
+      expect(result.contractSource).toBe('test-suite');
+      expect(result.failingTests).toBe(1);
+      expect(result.totalTests).toBe(2);
+    });
+
+    it('should throw on non-404 errors in the fallback path', async () => {
+      const mockGet = (mockedAxios.create as any)().get;
+      // Call 1: official API → 404 (fall through)
+      mockGet.mockRejectedValueOnce({ response: { status: 404 } });
+      // Call 2: test-suite proxy → 500 (should throw)
       mockGet.mockRejectedValueOnce({ response: { status: 500, data: { message: 'Internal Server Error' } } });
 
       await expect(client.getDataContract('test.table')).rejects.toThrow();

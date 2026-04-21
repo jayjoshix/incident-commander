@@ -119,7 +119,7 @@ LineageLock uses the following OpenMetadata capabilities:
 | **Classifications** | Entity `tags` field | Detect PII, GDPR, and sensitive data (with PII.None filtering) |
 | **Glossary Terms** | Entity tags with `source: Glossary` | Flag changes to business-critical glossary terms |
 | **Tier/Criticality** | Entity `tier` tag | Identify business-critical assets |
-| **Data Contracts** | `GET /api/v1/dataQuality/testSuites/search/list` | Check contract/test compliance |
+| **Data Contracts** | `GET /api/v1/dataContracts` (OM 1.5+), fallback to `GET /api/v1/dataQuality/testSuites/search/list` | Check contract/test compliance (dual-track — tries official API first) |
 
 > **API Compatibility:** Supports both OpenMetadata 1.12+ (`owners` array) and older versions (`owner` singular).
 
