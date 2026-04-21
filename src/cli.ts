@@ -150,11 +150,12 @@ program
         return {
           filePath: e.filePath,
           changedColumns: [
-            { name: 'total_amount', changeType: 'modified' as const, confidence: 'high' as const, source: 'sql-select' as const },
+            { name: 'amount', changeType: 'modified' as const, confidence: 'high' as const, source: 'sql-select' as const },
+            { name: 'customer_id', changeType: 'modified' as const, confidence: 'high' as const, source: 'sql-select' as const },
             { name: 'discount_pct', changeType: 'added' as const, confidence: 'high' as const, source: 'sql-select' as const },
           ],
           isStructuralChange: true,
-          changeDescription: '2 column(s) potentially affected',
+          changeDescription: '3 column(s) potentially affected',
         };
       }
       return {

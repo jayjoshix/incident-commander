@@ -32,7 +32,7 @@ npx ts-node src/cli.ts demo --scenario high-risk
 
 > "Here's what happens when someone changes `fact_orders.sql` — a Tier 1 table.
 >
-> LineageLock **parses the PR patch** and detects 2 changed columns: `total_amount` (modified) and `discount_pct` (added).
+> LineageLock **parses the PR patch** and detects 3 changed columns: `amount` (modified), `customer_id` (modified), and `discount_pct` (added).
 >
 > It resolves the file to an OpenMetadata entity, fetches lineage, and scores 7 risk factors:
 >
@@ -43,7 +43,11 @@ npx ts-node src/cli.ts demo --scenario high-risk
 > - **1 ML Model impacted** — the churn predictor (+10)
 > - **7 downstream entities total** — above the threshold (+10)
 >
-> Then the **Column-Level Impact** section shows exactly which downstream columns are affected by the `total_amount` change — tracing through OpenMetadata's column lineage.
+> Then the **Column-Level Impact** section shows exactly which downstream columns are affected:
+> - `amount` → `agg_daily_revenue.total_revenue` and `dim_order_details.order_total`
+> - `customer_id` → `agg_customer_ltv.customer_id`
+>
+> This is OpenMetadata's column lineage graph — surfaced directly in the PR comment.
 >
 > And the **Glossary Terms** section flags that this entity is linked to `Revenue` and `Customer Lifetime Value` — business-critical terms.
 >
