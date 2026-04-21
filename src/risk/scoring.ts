@@ -221,9 +221,15 @@ function evaluateSensitiveTags(
   maxPoints: number
 ): RiskFactor {
   const tags = collectAllTags(entity);
+  // Explicit exclusions: tags that look like sensitive keywords but are not
+  const NON_SENSITIVE_FQNS = new Set([
+    'pii.none', 'pii.nonsensitive', 'pii.non-sensitive', 'pii.public',
+  ]);
   // Use segment-boundary matching: split tagFQN on '.' and match each segment
   // This prevents false positives like PII.NonSensitive matching 'PII' keyword
   const sensitiveMatches = tags.filter((tag) => {
+    // Exclude known non-sensitive tags
+    if (NON_SENSITIVE_FQNS.has(tag.tagFQN.toLowerCase())) return false;
     const segments = tag.tagFQN.split('.');
     return keywords.some((kw) =>
       segments.some((seg) => seg.toLowerCase() === kw.toLowerCase())

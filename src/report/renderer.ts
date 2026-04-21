@@ -2,10 +2,13 @@
  * PR Comment Renderer
  *
  * Generates a well-formatted Markdown risk report for GitHub PR comments.
+ * Surfaces column-level lineage, glossary terms, and aggregate PR risk.
  */
 
 import { RiskReport, RiskAssessment, RiskLevel, Decision } from '../risk/types';
 import { ResolvedEntity } from '../openmetadata/types';
+import { PatchAnalysis } from '../diff/patch-parser';
+import { PRAggregateRisk } from '../risk/pr-aggregate';
 
 /** Emoji mapping for risk levels */
 const LEVEL_EMOJI: Record<RiskLevel, string> = {
@@ -34,7 +37,9 @@ const DECISION_LABEL: Record<Decision, string> = {
  */
 export function renderReport(
   report: RiskReport,
-  entities: ResolvedEntity[]
+  entities: ResolvedEntity[],
+  patchAnalyses?: PatchAnalysis[],
+  aggregate?: PRAggregateRisk
 ): string {
   const lines: string[] = [];
 
@@ -42,19 +47,32 @@ export function renderReport(
   lines.push('## 🔒 LineageLock Risk Report');
   lines.push('');
 
-  // Overall summary
-  lines.push(renderOverallSummary(report));
+  // Overall summary (use aggregate if available)
+  lines.push(renderOverallSummary(report, aggregate));
   lines.push('');
+
+  // PR-level aggregate (if escalated)
+  if (aggregate && aggregate.factors.length > 0) {
+    lines.push(renderAggregateSection(aggregate));
+    lines.push('');
+  }
 
   // Blast radius summary
   lines.push(renderBlastRadiusSummary(report));
   lines.push('');
 
+  // Changed columns summary (from patch analysis)
+  if (patchAnalyses && patchAnalyses.some(p => p.changedColumns.length > 0)) {
+    lines.push(renderChangedColumnsSummary(patchAnalyses, entities));
+    lines.push('');
+  }
+
   // Per-entity details
   for (let i = 0; i < report.assessments.length; i++) {
     const assessment = report.assessments[i];
     const entity = entities[i];
-    lines.push(renderEntityDetail(assessment, entity));
+    const patch = patchAnalyses?.[i];
+    lines.push(renderEntityDetail(assessment, entity, patch));
     lines.push('');
   }
 
@@ -78,22 +96,50 @@ export function renderReport(
 /**
  * Render the overall summary section.
  */
-function renderOverallSummary(report: RiskReport): string {
+function renderOverallSummary(report: RiskReport, aggregate?: PRAggregateRisk): string {
   const lines: string[] = [];
-  const emoji = LEVEL_EMOJI[report.overallLevel];
-  const decisionEmoji = DECISION_EMOJI[report.decision];
-  const decisionLabel = DECISION_LABEL[report.decision];
+  const score = aggregate?.aggregateScore ?? report.maxScore;
+  const decision = aggregate?.escalatedDecision ?? report.decision;
+  const level = report.overallLevel;
+  const emoji = LEVEL_EMOJI[level];
+  const decisionEmoji = DECISION_EMOJI[decision];
+  const decisionLabel = DECISION_LABEL[decision];
 
   lines.push('### Overall Assessment');
   lines.push('');
   lines.push('| Metric | Value |');
   lines.push('|--------|-------|');
-  lines.push(`| **Risk Score** | ${emoji} **${report.maxScore}/100** (${report.overallLevel}) |`);
+  lines.push(`| **Risk Score** | ${emoji} **${score}/100** (${level}) |`);
   lines.push(`| **Decision** | ${decisionEmoji} ${decisionLabel} |`);
   lines.push(`| **Entities Analyzed** | ${report.summary.totalEntities} |`);
   lines.push(`| **Resolved** | ${report.summary.resolvedEntities} |`);
   lines.push(`| **Unresolved** | ${report.summary.unresolvedEntities} |`);
 
+  if (aggregate && aggregate.aggregateScore > aggregate.maxEntityScore) {
+    lines.push('');
+    lines.push(`> ⚠️ PR-level escalation: score elevated from ${aggregate.maxEntityScore} → ${aggregate.aggregateScore} due to compound risk factors`);
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Render PR-level aggregate risk factors.
+ */
+function renderAggregateSection(aggregate: PRAggregateRisk): string {
+  const lines: string[] = [];
+  lines.push('<details>');
+  lines.push('<summary>📊 PR-Level Risk Escalation</summary>');
+  lines.push('');
+  lines.push('| Factor | Count | Escalation |');
+  lines.push('|--------|-------|------------|');
+  for (const f of aggregate.factors) {
+    lines.push(`| ${f.name} | ${f.count} | +${f.escalation} pts |`);
+  }
+  lines.push('');
+  lines.push(`**Total escalation:** +${aggregate.aggregateScore - aggregate.maxEntityScore} points`);
+  lines.push('');
+  lines.push('</details>');
   return lines.join('\n');
 }
 
@@ -116,11 +162,65 @@ function renderBlastRadiusSummary(report: RiskReport): string {
 }
 
 /**
+ * Render changed columns summary across all files.
+ */
+function renderChangedColumnsSummary(
+  patchAnalyses: PatchAnalysis[],
+  entities: ResolvedEntity[]
+): string {
+  const lines: string[] = [];
+  lines.push('### 🔬 Column-Level Impact');
+  lines.push('');
+
+  for (let i = 0; i < patchAnalyses.length; i++) {
+    const pa = patchAnalyses[i];
+    if (pa.changedColumns.length === 0) continue;
+
+    lines.push(`**\`${pa.filePath}\`** — ${pa.changeDescription}`);
+
+    for (const col of pa.changedColumns) {
+      const icon = col.changeType === 'added' ? '➕' :
+        col.changeType === 'removed' ? '➖' :
+        col.changeType === 'renamed' ? '🔄' : '✏️';
+      const conf = col.confidence === 'high' ? '' : ` *(${col.confidence} confidence)*`;
+      lines.push(`- ${icon} \`${col.name}\` — ${col.changeType}${conf}`);
+    }
+
+    // Cross-reference with column lineage
+    const entity = entities[i];
+    if (entity?.downstream?.columnImpact && entity.downstream.columnImpact.length > 0) {
+      const changedNames = new Set(pa.changedColumns.map(c => c.name.toLowerCase()));
+      const impacted = entity.downstream.columnImpact.filter(ci =>
+        ci.fromColumns.some(fc => {
+          const colName = fc.split('.').pop()?.toLowerCase() || '';
+          return changedNames.has(colName);
+        })
+      );
+      if (impacted.length > 0) {
+        lines.push('');
+        lines.push('  **⚡ Downstream column impact:**');
+        for (const ci of impacted.slice(0, 5)) {
+          lines.push(`  - \`${ci.fromColumns.map(c => c.split('.').pop()).join(', ')}\` → \`${ci.toColumn.split('.').pop()}\` in \`${ci.toEntity}\``);
+        }
+        if (impacted.length > 5) {
+          lines.push(`  - *...and ${impacted.length - 5} more*`);
+        }
+      }
+    }
+
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+/**
  * Render detail for a single assessed entity.
  */
 function renderEntityDetail(
   assessment: RiskAssessment,
-  entity: ResolvedEntity
+  entity: ResolvedEntity,
+  patch?: PatchAnalysis
 ): string {
   const lines: string[] = [];
   const emoji = LEVEL_EMOJI[assessment.level];
@@ -181,6 +281,19 @@ function renderEntityDetail(
         lines.push(`- ⚙️ \`${p.fullyQualifiedName}\``);
       }
     }
+    // Column-level lineage
+    if (entity.downstream.columnImpact.length > 0) {
+      lines.push('');
+      lines.push(`**Column Lineage (${entity.downstream.columnImpact.length} mappings):**`);
+      for (const ci of entity.downstream.columnImpact.slice(0, 8)) {
+        const from = ci.fromColumns.map(c => c.split('.').pop()).join(', ');
+        const to = ci.toColumn.split('.').pop();
+        lines.push(`- \`${from}\` → \`${to}\` in \`${ci.toEntity}\``);
+      }
+      if (entity.downstream.columnImpact.length > 8) {
+        lines.push(`- *...and ${entity.downstream.columnImpact.length - 8} more*`);
+      }
+    }
     lines.push('');
     lines.push('</details>');
   }
@@ -198,6 +311,10 @@ function renderEntityDetail(
       lines.push(`- **Tags:** ${e.tags.map((t) => `\`${t.tagFQN}\``).join(', ')}`);
     } else {
       lines.push('- **Tags:** None');
+    }
+    // Glossary terms
+    if (entity.glossaryTerms && entity.glossaryTerms.length > 0) {
+      lines.push(`- **Glossary Terms:** ${entity.glossaryTerms.map(g => `\`${g}\``).join(', ')}`);
     }
     lines.push('');
     lines.push('</details>');
@@ -227,10 +344,13 @@ function renderEntityDetail(
     lines.push('</details>');
   }
 
-  // Owner notification
+  // Owner action recommendation
   if (entity.entity?.owner) {
     lines.push('');
-    lines.push(`📬 **Notify:** ${entity.entity.owner.displayName || entity.entity.owner.name}`);
+    lines.push(`📬 **Action:** Request review from **${entity.entity.owner.displayName || entity.entity.owner.name}** (${entity.entity.owner.type})`);
+  } else if (entity.found) {
+    lines.push('');
+    lines.push('📬 **Action:** ⚠️ No owner — assign an owner in OpenMetadata before merging');
   }
 
   return lines.join('\n');

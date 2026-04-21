@@ -73,7 +73,7 @@ describe('renderReport', () => {
     const report = scoreEntities([DEMO_FACT_ORDERS], DEFAULT_CONFIG);
     const markdown = renderReport(report, [DEMO_FACT_ORDERS]);
 
-    expect(markdown).toContain('📬 **Notify:** Data Engineering Team');
+    expect(markdown).toContain('**Action:** Request review from **Data Engineering Team**');
   });
 
   it('should include the correct decision', () => {

@@ -145,3 +145,71 @@ describe('scoreEntities', () => {
     expect(report.decision).toBe('pass');
   });
 });
+
+describe('sensitive tag false positive fix', () => {
+  it('should NOT flag PII.None as sensitive', () => {
+    const entity: ResolvedEntity = {
+      filePath: 'test.sql',
+      fqn: 'test.table',
+      found: true,
+      entity: {
+        id: 'test-1',
+        name: 'test_table',
+        fullyQualifiedName: 'test.table',
+        columns: [{
+          name: 'address',
+          dataType: 'VARCHAR',
+          tags: [{ tagFQN: 'PII.None', source: 'Classification', labelType: 'Manual', state: 'Confirmed' }],
+        }],
+        tags: [],
+      },
+    };
+    const result = scoreEntity(entity, DEFAULT_CONFIG);
+    const tagFactor = result.factors.find(f => f.name === 'Sensitive Data Tags');
+    expect(tagFactor?.triggered).toBe(false);
+  });
+
+  it('should NOT flag PII.NonSensitive as sensitive', () => {
+    const entity: ResolvedEntity = {
+      filePath: 'test.sql',
+      fqn: 'test.table',
+      found: true,
+      entity: {
+        id: 'test-2',
+        name: 'test_table',
+        fullyQualifiedName: 'test.table',
+        columns: [{
+          name: 'public_id',
+          dataType: 'VARCHAR',
+          tags: [{ tagFQN: 'PII.NonSensitive', source: 'Classification', labelType: 'Manual', state: 'Confirmed' }],
+        }],
+        tags: [],
+      },
+    };
+    const result = scoreEntity(entity, DEFAULT_CONFIG);
+    const tagFactor = result.factors.find(f => f.name === 'Sensitive Data Tags');
+    expect(tagFactor?.triggered).toBe(false);
+  });
+
+  it('should still flag PII.Sensitive correctly', () => {
+    const entity: ResolvedEntity = {
+      filePath: 'test.sql',
+      fqn: 'test.table',
+      found: true,
+      entity: {
+        id: 'test-3',
+        name: 'test_table',
+        fullyQualifiedName: 'test.table',
+        columns: [{
+          name: 'email',
+          dataType: 'VARCHAR',
+          tags: [{ tagFQN: 'PII.Sensitive', source: 'Classification', labelType: 'Manual', state: 'Confirmed' }],
+        }],
+        tags: [],
+      },
+    };
+    const result = scoreEntity(entity, DEFAULT_CONFIG);
+    const tagFactor = result.factors.find(f => f.name === 'Sensitive Data Tags');
+    expect(tagFactor?.triggered).toBe(true);
+  });
+});

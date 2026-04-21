@@ -37,7 +37,7 @@ const FACT_ORDERS_TABLE: TableEntity = {
       ],
     },
     { name: 'shipping_address', dataType: 'VARCHAR', dataTypeDisplay: 'varchar(500)', description: 'Shipping address',
-      tags: [{ tagFQN: 'PII.None', source: 'Classification', labelType: 'Manual', state: 'Confirmed' }],
+      tags: [{ tagFQN: 'PersonalData.Address', source: 'Classification', labelType: 'Manual', state: 'Confirmed' }],
     },
   ],
   owner: {

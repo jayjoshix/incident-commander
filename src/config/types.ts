@@ -83,6 +83,24 @@ export interface LineageLockConfig {
   weights: RiskWeights;
   /** Whether to treat unresolved assets as errors in the report */
   failOnUnresolved: boolean;
+  /** Workflow automation settings (reviewers, labels, notifications) */
+  automation?: {
+    reviewers?: {
+      enabled: boolean;
+      ownerMapping?: Record<string, string>;
+      maxReviewers?: number;
+    };
+    labels?: {
+      enabled: boolean;
+      names?: Record<string, string>;
+    };
+    notifications?: {
+      minLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+      webhookUrl?: string;
+      slackWebhookUrl?: string;
+      teamsWebhookUrl?: string;
+    };
+  };
 }
 
 /** Default configuration values */

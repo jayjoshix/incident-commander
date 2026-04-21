@@ -4,7 +4,7 @@
 
 [![OpenMetadata Integration](https://img.shields.io/badge/OpenMetadata-Integrated-blue?style=flat-square)](https://open-metadata.org)
 [![GitHub Action](https://img.shields.io/badge/GitHub_Action-Ready-green?style=flat-square)](https://github.com/features/actions)
-[![Tests](https://img.shields.io/badge/Tests-59_passing-brightgreen?style=flat-square)](#testing)
+[![Tests](https://img.shields.io/badge/Tests-90%2B_passing-brightgreen?style=flat-square)](#testing)
 [![License](https://img.shields.io/badge/License-Apache_2.0-orange?style=flat-square)](LICENSE)
 
 ---
@@ -20,14 +20,17 @@ Data teams routinely change dbt models, SQL files, and schema definitions withou
 When a PR changes a dbt model, SQL file, or schema YAML, LineageLock:
 
 1. **Detects** changed data model files in the PR
-2. **Resolves** file paths to OpenMetadata entities via configurable naming conventions
-3. **Fetches** lineage, ownership, tags, tier, and data contracts from OpenMetadata
-4. **Computes** a deterministic risk score (0–100) based on 7 weighted factors
-5. **Posts** a detailed Markdown risk report as a PR comment
-6. **Blocks or warns** based on configurable thresholds
+2. **Parses patches** to detect changed columns via deterministic SQL/YAML diff analysis
+3. **Resolves** file paths to OpenMetadata entities via configurable naming conventions
+4. **Fetches** lineage, column lineage, ownership, tags, glossary terms, tier, and data contracts
+5. **Intersects** changed columns with column-level lineage for precise downstream impact
+6. **Computes** a deterministic risk score (0–100) with PR-level aggregate escalation
+7. **Posts** a detailed Markdown risk report with column-level impact and owner action recommendations
+8. **Automates** reviewer requests, risk labels, and Slack/Teams/webhook notifications
+9. **Blocks or warns** based on configurable thresholds
 
 ```
-PR opened → Changed files detected → OpenMetadata lookup → Risk scored → PR comment posted
+PR opened → Patch parsed → Files resolved → OpenMetadata lookup → Column intersection → Risk scored → PR aggregate → Comment + Labels + Reviewers + Webhooks
 ```
 
 ## Live Sandbox Verification ✅
@@ -111,8 +114,10 @@ LineageLock uses the following OpenMetadata capabilities:
 |------------|-------------|---------|
 | **Entity Resolution** | `GET /api/v1/tables/name/{fqn}` | Resolve changed files to metadata entities |
 | **Lineage Graph** | `GET /api/v1/lineage/table/{id}` | Compute blast radius and downstream impact |
-| **Ownership** | Entity `owners` field | Identify stakeholders to notify |
-| **Classifications** | Entity `tags` field | Detect PII, GDPR, and sensitive data |
+| **Column-Level Lineage** | Lineage edge `columnLineage` field | Precise downstream column tracing, intersected with PR patches |
+| **Ownership** | Entity `owners` field | Route PR reviewers based on data owners |
+| **Classifications** | Entity `tags` field | Detect PII, GDPR, and sensitive data (with PII.None filtering) |
+| **Glossary Terms** | Entity tags with `source: Glossary` | Flag changes to business-critical glossary terms |
 | **Tier/Criticality** | Entity `tier` tag | Identify business-critical assets |
 | **Data Contracts** | `GET /api/v1/dataQuality/testSuites/search/list` | Check contract/test compliance |
 
