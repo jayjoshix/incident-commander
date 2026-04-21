@@ -44,16 +44,18 @@ This puts OpenMetadata's governance intelligence directly in the PR — where me
 
 ## How It Integrates OpenMetadata
 
-LineageLock uses 6 OpenMetadata capabilities through the official REST API:
+LineageLock uses 8 OpenMetadata capabilities through the official REST API:
 
 | # | Capability | API Used | Purpose in LineageLock |
 |---|-----------|----------|----------------------|
 | 1 | **Entity Resolution** | `GET /api/v1/tables/name/{fqn}` | Map changed PR files to OpenMetadata table entities |
 | 2 | **Lineage Graph** | `GET /api/v1/lineage/table/{id}` | Compute blast radius — downstream tables, dashboards, ML models, pipelines |
-| 3 | **Ownership** | Entity `owners[]` / `owner` field | Identify stakeholders to notify when their asset is impacted (supports v1.12+ `owners` array and legacy `owner` field) |
-| 4 | **Classifications/Tags** | Entity & column `tags` fields | Detect PII, GDPR, and sensitive data exposure risks |
-| 5 | **Tier/Criticality** | Entity `tier` tag | Identify changes to business-critical Tier 1/Tier 2 assets |
-| 6 | **Data Contracts** | `GET /api/v1/dataQuality/testSuites/search/list` | Check if data quality tests are passing or failing |
+| 3 | **Column-Level Lineage** | Lineage edge `columnLineage` field | Track which specific columns flow downstream — not just tables |
+| 4 | **Ownership** | Entity `owners[]` / `owner` field | Identify stakeholders to notify when their asset is impacted (supports v1.12+ `owners` array and legacy `owner` field) |
+| 5 | **Classifications/Tags** | Entity & column `tags` fields | Detect PII, GDPR, and sensitive data exposure risks |
+| 6 | **Glossary Terms** | Entity tags with `source: Glossary` | Detect changes touching business-critical glossary terms (Revenue, Customer Data) |
+| 7 | **Tier/Criticality** | Entity `tier` tag | Identify changes to business-critical Tier 1/Tier 2 assets |
+| 8 | **Data Contracts** | `GET /api/v1/dataQuality/testSuites/search/list` | Check if data quality tests are passing or failing |
 
 This is not a superficial integration. LineageLock depends on OpenMetadata as its core data source — without it, there is no blast radius, no governance context, and no risk score.
 
@@ -165,11 +167,12 @@ See `DEMO_SCRIPT.md` for a complete 3-minute presentation script.
 
 ## Why This Fits the Hackathon
 
-1. **Deep OpenMetadata integration** — uses 6 API capabilities, not a superficial wrapper
+1. **Deep OpenMetadata integration** — uses 8 API capabilities including column-level lineage and glossary terms
 2. **Solves a real problem** — data teams need governance in PR workflows
 3. **Practical tool** — not a dashboard clone, not a chatbot, but a CI/CD-integrated guard
-4. **Production-ready architecture** — clean TypeScript, tests, configurable, extensible
-5. **Honest scope** — clearly labeled MVP with documented limitations and future work
+4. **Production-ready architecture** — clean TypeScript, 59 tests, configurable, extensible
+5. **Dual-track submission** — fits both **Developer Tooling & CI/CD** and **Governance & Classification** tracks
+6. **Honest scope** — clearly labeled MVP with documented limitations and future work
 
 ---
 
