@@ -197,7 +197,9 @@ function parseYamlPatch(filePath: string, patch: string): PatchAnalysis {
     lineIsAdded = rawLine.startsWith('+') && !rawLine.startsWith('+++');
     lineIsRemoved = rawLine.startsWith('-') && !rawLine.startsWith('---');
 
-    const line = rawLine.replace(/^[+-]/, '').trim();
+    // Strip only the diff prefix (+/-/space), preserve indentation
+    const stripped = (lineIsAdded || lineIsRemoved) ? rawLine.slice(1) : rawLine.startsWith(' ') ? rawLine.slice(1) : rawLine;
+    const line = stripped.trim();
 
     // Detect start of columns block
     if (/^columns:/.test(line)) {
@@ -233,9 +235,10 @@ function parseYamlPatch(filePath: string, patch: string): PatchAnalysis {
       }
     }
 
-    // Exit columns block on de-indent
-    if (inColumnsBlock && !rawLine.startsWith('+') && !rawLine.startsWith('-') &&
-        /^\S/.test(line) && !/^columns:/.test(line) && line.length > 0) {
+    // Exit columns block on de-indent — use the stripped (non-trimmed) line
+    // A line at column 0 (no leading whitespace) that isn't a diff marker exits the block
+    if (inColumnsBlock && !lineIsAdded && !lineIsRemoved &&
+        stripped.length > 0 && /^\S/.test(stripped) && !/^columns:/.test(line)) {
       inColumnsBlock = false;
       currentColumn = null;
     }

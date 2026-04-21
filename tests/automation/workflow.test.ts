@@ -27,23 +27,25 @@ describe('determineReviewers', () => {
   it('should return empty when disabled', () => {
     const config: AutomationConfig = { reviewers: { enabled: false } };
     const result = determineReviewers(DEMO_ENTITIES, config);
-    expect(result).toEqual([]);
+    expect(result).toEqual({ users: [], teams: [] });
   });
 
   it('should return empty when no config provided', () => {
     const result = determineReviewers(DEMO_ENTITIES, {});
-    expect(result).toEqual([]);
+    expect(result).toEqual({ users: [], teams: [] });
   });
 
-  it('should extract reviewers from entity owners', () => {
+  it('should extract team reviewers from team owners', () => {
     const config: AutomationConfig = {
       reviewers: { enabled: true },
     };
     const result = determineReviewers([DEMO_FACT_ORDERS], config);
-    expect(result).toContain('data-engineering');
+    // data-engineering is type:'team', so goes to teams
+    expect(result.teams).toContain('data-engineering');
+    expect(result.users).toHaveLength(0);
   });
 
-  it('should use owner mapping when provided', () => {
+  it('should use owner mapping when provided (maps to user)', () => {
     const config: AutomationConfig = {
       reviewers: {
         enabled: true,
@@ -51,8 +53,9 @@ describe('determineReviewers', () => {
       },
     };
     const result = determineReviewers([DEMO_FACT_ORDERS], config);
-    expect(result).toContain('team-lead-github');
-    expect(result).not.toContain('data-engineering');
+    // Mapped names go to users
+    expect(result.users).toContain('team-lead-github');
+    expect(result.teams).toHaveLength(0);
   });
 
   it('should respect maxReviewers limit', () => {
@@ -60,7 +63,7 @@ describe('determineReviewers', () => {
       reviewers: { enabled: true, maxReviewers: 1 },
     };
     const result = determineReviewers(DEMO_ENTITIES, config);
-    expect(result.length).toBeLessThanOrEqual(1);
+    expect(result.users.length + result.teams.length).toBeLessThanOrEqual(2); // max 1 each
   });
 
   it('should skip entities without owners', () => {
@@ -68,7 +71,7 @@ describe('determineReviewers', () => {
       reviewers: { enabled: true },
     };
     const result = determineReviewers([DEMO_STG_PAYMENTS], config);
-    expect(result.length).toBe(0);
+    expect(result.users.length + result.teams.length).toBe(0);
   });
 });
 

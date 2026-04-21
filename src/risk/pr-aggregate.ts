@@ -5,7 +5,7 @@
  * Multiple medium-risk changes can escalate overall review urgency.
  */
 
-import { RiskReport, RiskAssessment, Decision } from './types';
+import { RiskReport, RiskAssessment, RiskLevel, Decision } from './types';
 import { ResolvedEntity } from '../openmetadata/types';
 import { LineageLockConfig } from '../config/types';
 import { PatchAnalysis } from '../diff/patch-parser';
@@ -19,6 +19,8 @@ export interface PRAggregateRisk {
   factors: PRAggregateFactor[];
   /** Escalated decision (may override entity-level decision) */
   escalatedDecision: Decision;
+  /** Escalated risk level derived from aggregate score */
+  escalatedLevel: RiskLevel;
 }
 
 export interface PRAggregateFactor {
@@ -110,6 +112,12 @@ export function computePRAggregate(
 
   const aggregateScore = Math.min(report.maxScore + escalation, 100);
 
+  // Compute escalated level from aggregate score
+  const escalatedLevel: RiskLevel = aggregateScore >= 80 ? 'CRITICAL'
+    : aggregateScore >= 60 ? 'HIGH'
+    : aggregateScore >= 30 ? 'MEDIUM'
+    : 'LOW';
+
   // Compute escalated decision
   let escalatedDecision = report.decision;
   if (aggregateScore >= config.thresholds.fail && report.decision !== 'fail') {
@@ -123,5 +131,6 @@ export function computePRAggregate(
     aggregateScore,
     factors,
     escalatedDecision,
+    escalatedLevel,
   };
 }

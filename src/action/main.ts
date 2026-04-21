@@ -133,16 +133,18 @@ async function run(): Promise<void> {
 
     // 10a. Request reviewers
     try {
-      const reviewers = determineReviewers(entities, automationConfig);
-      if (reviewers.length > 0) {
+      const reviewerResult = determineReviewers(entities, automationConfig);
+      if (reviewerResult.users.length > 0 || reviewerResult.teams.length > 0) {
         const octokit = github.getOctokit(githubToken);
         await octokit.rest.pulls.requestReviewers({
           owner: prContext.owner,
           repo: prContext.repo,
           pull_number: prContext.pullNumber,
-          reviewers,
+          reviewers: reviewerResult.users,
+          team_reviewers: reviewerResult.teams,
         });
-        core.info(`👥 Requested reviewers: ${reviewers.join(', ')}`);
+        const all = [...reviewerResult.users, ...reviewerResult.teams.map(t => `team:${t}`)];
+        core.info(`👥 Requested reviewers: ${all.join(', ')}`);
       }
     } catch (err: any) {
       core.warning(`⚠️ Reviewer request failed (non-blocking): ${err.message}`);
@@ -170,7 +172,7 @@ async function run(): Promise<void> {
     if (notifications) {
       const minLevel = notifications.minLevel || 'HIGH';
       const levelOrder = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
-      const reportLevelIdx = levelOrder.indexOf(report.overallLevel);
+      const reportLevelIdx = levelOrder.indexOf(aggregate.escalatedLevel);
       const minLevelIdx = levelOrder.indexOf(minLevel);
 
       if (reportLevelIdx >= minLevelIdx) {
@@ -213,10 +215,10 @@ async function run(): Promise<void> {
     const finalScore = aggregate.aggregateScore;
     const finalDecision = aggregate.escalatedDecision;
     core.setOutput('risk_score', finalScore.toString());
-    core.setOutput('risk_level', report.overallLevel);
+    core.setOutput('risk_level', aggregate.escalatedLevel);
     core.setOutput('decision', finalDecision);
     core.setOutput('changed_columns', totalChangedCols.toString());
-    core.info(renderCompactSummary(report));
+    core.info(renderCompactSummary(report, aggregate));
 
     // 12. Exit code based on decision
     if (finalDecision === 'fail') {

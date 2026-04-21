@@ -100,7 +100,7 @@ function renderOverallSummary(report: RiskReport, aggregate?: PRAggregateRisk): 
   const lines: string[] = [];
   const score = aggregate?.aggregateScore ?? report.maxScore;
   const decision = aggregate?.escalatedDecision ?? report.decision;
-  const level = report.overallLevel;
+  const level = aggregate?.escalatedLevel ?? report.overallLevel;
   const emoji = LEVEL_EMOJI[level];
   const decisionEmoji = DECISION_EMOJI[decision];
   const decisionLabel = DECISION_LABEL[decision];
@@ -380,7 +380,10 @@ function renderUnresolvedEntities(unresolved: ResolvedEntity[]): string {
 /**
  * Render a compact single-line summary (for action output).
  */
-export function renderCompactSummary(report: RiskReport): string {
-  const emoji = LEVEL_EMOJI[report.overallLevel];
-  return `${emoji} LineageLock: ${report.overallLevel} (${report.maxScore}/100) — ${DECISION_LABEL[report.decision]}`;
+export function renderCompactSummary(report: RiskReport, aggregate?: PRAggregateRisk): string {
+  const level = aggregate?.escalatedLevel ?? report.overallLevel;
+  const score = aggregate?.aggregateScore ?? report.maxScore;
+  const decision = aggregate?.escalatedDecision ?? report.decision;
+  const emoji = LEVEL_EMOJI[level];
+  return `${emoji} LineageLock: ${level} (${score}/100) — ${DECISION_LABEL[decision]}`;
 }

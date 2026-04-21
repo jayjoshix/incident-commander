@@ -63,31 +63,59 @@ const DEFAULT_LABELS: LabelNames = {
   noOwner: 'lineagelock:no-owner',
 };
 
-// ─── Reviewer Detection ─────────────────────────────────────────────────────
+/**
+ * Reviewer result with separate users and teams.
+ */
+export interface ReviewerResult {
+  users: string[];
+  teams: string[];
+}
 
 /**
  * Determine GitHub reviewers from OpenMetadata entity owners.
+ * Separates individual users from team owners for correct GitHub API usage.
  */
 export function determineReviewers(
   entities: ResolvedEntity[],
   config: AutomationConfig
-): string[] {
-  if (!config.reviewers?.enabled) return [];
+): ReviewerResult {
+  if (!config.reviewers?.enabled) return { users: [], teams: [] };
 
   const ownerMapping = config.reviewers.ownerMapping || {};
   const maxReviewers = config.reviewers.maxReviewers || 3;
-  const reviewers = new Set<string>();
+  const users = new Set<string>();
+  const teams = new Set<string>();
 
   for (const entity of entities) {
     if (!entity.entity?.owner) continue;
-    const omName = entity.entity.owner.name;
-    const ghUser = ownerMapping[omName] || omName; // Fallback: assume same username
-    if (ghUser && ghUser !== 'unknown') {
-      reviewers.add(ghUser);
+    const owner = entity.entity.owner;
+    const omName = owner.name;
+    const mapped = ownerMapping[omName];
+
+    // Determine if this is a team or user owner
+    const isTeam = owner.type === 'team';
+
+    if (mapped) {
+      // Mapped names go to users (assumed GitHub username)
+      users.add(mapped);
+    } else if (isTeam) {
+      // Team owners → team_reviewers (strip org prefix if present)
+      const teamSlug = omName.replace(/[^a-zA-Z0-9-]/g, '-').toLowerCase();
+      if (teamSlug && teamSlug !== 'unknown') {
+        teams.add(teamSlug);
+      }
+    } else {
+      // User owners → individual reviewers
+      if (omName && omName !== 'unknown') {
+        users.add(omName);
+      }
     }
   }
 
-  return [...reviewers].slice(0, maxReviewers);
+  return {
+    users: [...users].slice(0, maxReviewers),
+    teams: [...teams].slice(0, maxReviewers),
+  };
 }
 
 // ─── Label Detection ────────────────────────────────────────────────────────
@@ -176,11 +204,11 @@ export function buildNotificationPayload(
     prNumber,
     prUrl,
     riskScore: aggregate.aggregateScore,
-    riskLevel: report.overallLevel,
+    riskLevel: aggregate.escalatedLevel,
     decision: aggregate.escalatedDecision,
     entityCount: report.summary.totalEntities,
     downstreamCount: report.summary.totalDownstream,
-    summary: `PR #${prNumber}: ${report.overallLevel} risk (${aggregate.aggregateScore}/100) — ${report.summary.totalEntities} entities, ${report.summary.totalDownstream} downstream`,
+    summary: `PR #${prNumber}: ${aggregate.escalatedLevel} risk (${aggregate.aggregateScore}/100) — ${report.summary.totalEntities} entities, ${report.summary.totalDownstream} downstream`,
   };
 }
 

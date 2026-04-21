@@ -338,9 +338,10 @@ Tags are matched using **segment-boundary** matching (not substring). The `tagFQ
 - `PII.Sensitive` → Matches keyword `PII` (first segment) ✅
 - `DataSensitivity.Confidential` → Matches keyword `Confidential` (second segment) ✅
 - `DataSensitivity.Confidential` → Does **not** match keyword `PII` (no segment equals `PII`) ✅
-- `PII.None` → **Does** match keyword `PII` (first segment matches) — configure your `sensitiveTags.keywords` accordingly
+- `PII.None` → **Excluded** — explicitly filtered as a known non-sensitive tag ✅
+- `PII.NonSensitive` → **Excluded** — explicitly filtered as a known non-sensitive tag ✅
 
-This prevents false positives from unrelated tags (e.g., `DataTier.Bronze` won't match `PII`), while ensuring any tag in a sensitive classification (e.g., `PII.*`) is flagged.
+**False-positive exclusion list:** `PII.None`, `PII.NonSensitive`, `PII.Non-Sensitive`, `PII.Public` are all excluded from sensitive tag detection, even though they match the `PII` keyword segment. This prevents false positives from classification tags that explicitly indicate non-sensitive data.
 
 ### Error Handling
 
