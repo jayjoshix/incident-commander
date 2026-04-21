@@ -13,8 +13,8 @@ describe('renderReport', () => {
     const markdown = renderReport(report, DEMO_ENTITIES);
 
     expect(markdown).toContain('## 🔒 LineageLock Risk Report');
-    expect(markdown).toContain('### Overall Assessment');
-    expect(markdown).toContain('### 💥 Blast Radius');
+    expect(markdown).toContain('📊 Detailed Scoring');
+    expect(markdown).toContain('### 🏛️ Governance Triggers');
   });
 
   it('should include entity details for each assessed entity', () => {
@@ -69,11 +69,12 @@ describe('renderReport', () => {
     expect(markdown).toContain('stg_inventory');
   });
 
-  it('should include owner notification', () => {
+  it('should include owner in governance triggers', () => {
     const report = scoreEntities([DEMO_FACT_ORDERS], DEFAULT_CONFIG);
     const markdown = renderReport(report, [DEMO_FACT_ORDERS]);
 
-    expect(markdown).toContain('**Action:** Request review from **Data Engineering Team**');
+    expect(markdown).toContain('Data Engineering Team');
+    expect(markdown).toContain('Governance Triggers');
   });
 
   it('should include the correct decision', () => {

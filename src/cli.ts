@@ -14,8 +14,9 @@ import { OpenMetadataClient } from './openmetadata/client';
 import { resolveFiles, filterDataModelFiles, resolveFileToFQN } from './resolver/asset-resolver';
 import { scoreEntities } from './risk/scoring';
 import { computePRAggregate } from './risk/pr-aggregate';
-import { renderReport, renderCompactSummary } from './report/renderer';
+import { renderReport, renderCompactSummary, RenderContext } from './report/renderer';
 import { parsePatch, PatchAnalysis } from './diff/patch-parser';
+import { determineReviewers, determineLabels } from './automation/workflow';
 import { ResolvedEntity } from './openmetadata/types';
 import { DEMO_ENTITIES, DEMO_CHANGED_FILES } from './fixtures/demo-data';
 
@@ -169,22 +170,24 @@ program
     const report = scoreEntities(entities, config);
     const aggregate = computePRAggregate(report, entities, demoPatchAnalyses, config);
 
+    // Simulate automation context for demo
+    const automationConfig = config.automation || { reviewers: { enabled: true }, labels: { enabled: true } };
+    const reviewerResult = determineReviewers(entities, automationConfig);
+    const appliedLabels = determineLabels(report, entities, demoPatchAnalyses, automationConfig);
+    const demoContext: RenderContext = {
+      reviewerResult: (reviewerResult.users.length > 0 || reviewerResult.teams.length > 0) ? reviewerResult : undefined,
+      appliedLabels: appliedLabels.length > 0 ? appliedLabels : undefined,
+    };
+
     if (opts.json) {
-      console.log(JSON.stringify({ report, aggregate }, null, 2));
+      console.log(JSON.stringify({ report, aggregate, automation: { reviewerResult, appliedLabels } }, null, 2));
     } else {
       console.log('═'.repeat(60));
       console.log('');
-      console.log(renderReport(report, entities, demoPatchAnalyses, aggregate));
+      console.log(renderReport(report, entities, demoPatchAnalyses, aggregate, demoContext));
       console.log('═'.repeat(60));
       console.log('');
       console.log(renderCompactSummary(report, aggregate));
-
-      if (aggregate.factors.length > 0) {
-        console.log(`\n⚡ PR-Level Escalation: ${aggregate.maxEntityScore} → ${aggregate.aggregateScore}`);
-        for (const f of aggregate.factors) {
-          console.log(`   +${f.escalation} — ${f.detail}`);
-        }
-      }
     }
   });
 

@@ -2,13 +2,15 @@
  * PR Comment Renderer
  *
  * Generates a well-formatted Markdown risk report for GitHub PR comments.
- * Surfaces column-level lineage, glossary terms, and aggregate PR risk.
+ * Leads with what changed and what breaks — column-aware blast radius first,
+ * governance triggers, reviewer/label automation, then per-entity details.
  */
 
 import { RiskReport, RiskAssessment, RiskLevel, Decision } from '../risk/types';
 import { ResolvedEntity } from '../openmetadata/types';
 import { PatchAnalysis } from '../diff/patch-parser';
 import { PRAggregateRisk } from '../risk/pr-aggregate';
+import { ReviewerResult } from '../automation/workflow';
 
 /** Emoji mapping for risk levels */
 const LEVEL_EMOJI: Record<RiskLevel, string> = {
@@ -33,41 +35,73 @@ const DECISION_LABEL: Record<Decision, string> = {
 };
 
 /**
+ * Render context passed from the action to enrich the report
+ * with automation results.
+ */
+export interface RenderContext {
+  reviewerResult?: ReviewerResult;
+  appliedLabels?: string[];
+}
+
+/**
  * Render the full Markdown risk report.
+ *
+ * Section order (designed to lead with impact):
+ * 1. Header + decision
+ * 2. What Changed — changed columns + downstream breakage (the headline)
+ * 3. Governance Triggers — OpenMetadata-native signals
+ * 4. Automation — who was requested and why, what labels applied
+ * 5. Overall Assessment — score table
+ * 6. PR Escalation — compound risk (only if visible)
+ * 7. Per-entity details (collapsible)
+ * 8. Unresolved entities
  */
 export function renderReport(
   report: RiskReport,
   entities: ResolvedEntity[],
   patchAnalyses?: PatchAnalysis[],
-  aggregate?: PRAggregateRisk
+  aggregate?: PRAggregateRisk,
+  context?: RenderContext
 ): string {
   const lines: string[] = [];
+  const score = aggregate?.aggregateScore ?? report.maxScore;
+  const decision = aggregate?.escalatedDecision ?? report.decision;
+  const level = aggregate?.escalatedLevel ?? report.overallLevel;
 
-  // Header
+  // ── 1. Header ──────────────────────────────────────────────────────
   lines.push('## 🔒 LineageLock Risk Report');
   lines.push('');
+  lines.push(`${LEVEL_EMOJI[level]} **${level}** · ${score}/100 · ${DECISION_EMOJI[decision]} ${DECISION_LABEL[decision]}`);
+  lines.push('');
 
-  // Overall summary (use aggregate if available)
+  // ── 2. What Changed — lead with the column-aware blast radius ──────
+  if (patchAnalyses && patchAnalyses.some(p => p.changedColumns.length > 0)) {
+    lines.push(renderImpactSummary(patchAnalyses, entities));
+    lines.push('');
+  }
+
+  // ── 3. Governance Triggers — OpenMetadata-native ───────────────────
+  lines.push(renderGovernanceTriggers(entities));
+  lines.push('');
+
+  // ── 4. Automation — reviewers + labels with reasons ────────────────
+  if (context && (context.reviewerResult || context.appliedLabels)) {
+    lines.push(renderAutomation(context, entities));
+    lines.push('');
+  }
+
+  // ── 5. Overall Assessment ──────────────────────────────────────────
   lines.push(renderOverallSummary(report, aggregate));
   lines.push('');
 
-  // PR-level aggregate (if escalated)
-  if (aggregate && aggregate.factors.length > 0) {
+  // ── 6. PR-level aggregate (only if escalation produced visible change)
+  if (aggregate && aggregate.factors.length > 0 &&
+      aggregate.aggregateScore > aggregate.maxEntityScore) {
     lines.push(renderAggregateSection(aggregate));
     lines.push('');
   }
 
-  // Blast radius summary
-  lines.push(renderBlastRadiusSummary(report));
-  lines.push('');
-
-  // Changed columns summary (from patch analysis)
-  if (patchAnalyses && patchAnalyses.some(p => p.changedColumns.length > 0)) {
-    lines.push(renderChangedColumnsSummary(patchAnalyses, entities));
-    lines.push('');
-  }
-
-  // Per-entity details
+  // ── 7. Per-entity details ──────────────────────────────────────────
   for (let i = 0; i < report.assessments.length; i++) {
     const assessment = report.assessments[i];
     const entity = entities[i];
@@ -76,7 +110,7 @@ export function renderReport(
     lines.push('');
   }
 
-  // Unresolved entities
+  // ── 8. Unresolved entities ─────────────────────────────────────────
   const unresolved = entities.filter((e) => !e.found);
   if (unresolved.length > 0) {
     lines.push(renderUnresolvedEntities(unresolved));
@@ -93,43 +127,258 @@ export function renderReport(
   return lines.join('\n');
 }
 
+// ═════════════════════════════════════════════════════════════════════════════
+//  Section Renderers
+// ═════════════════════════════════════════════════════════════════════════════
+
 /**
- * Render the overall summary section.
+ * Section 2: Impact Summary — changed columns + downstream breakage + affected assets.
+ * This is the headline: "what changed → what breaks → what stakeholders are affected."
  */
-function renderOverallSummary(report: RiskReport, aggregate?: PRAggregateRisk): string {
+function renderImpactSummary(patchAnalyses: PatchAnalysis[], entities: ResolvedEntity[]): string {
   const lines: string[] = [];
-  const score = aggregate?.aggregateScore ?? report.maxScore;
-  const decision = aggregate?.escalatedDecision ?? report.decision;
-  const level = aggregate?.escalatedLevel ?? report.overallLevel;
-  const emoji = LEVEL_EMOJI[level];
-  const decisionEmoji = DECISION_EMOJI[decision];
-  const decisionLabel = DECISION_LABEL[decision];
-
-  lines.push('### Overall Assessment');
+  lines.push('### 🔬 What Changed → What Breaks');
   lines.push('');
-  lines.push('| Metric | Value |');
-  lines.push('|--------|-------|');
-  lines.push(`| **Risk Score** | ${emoji} **${score}/100** (${level}) |`);
-  lines.push(`| **Decision** | ${decisionEmoji} ${decisionLabel} |`);
-  lines.push(`| **Entities Analyzed** | ${report.summary.totalEntities} |`);
-  lines.push(`| **Resolved** | ${report.summary.resolvedEntities} |`);
-  lines.push(`| **Unresolved** | ${report.summary.unresolvedEntities} |`);
 
-  if (aggregate && aggregate.aggregateScore > aggregate.maxEntityScore) {
+  for (let i = 0; i < patchAnalyses.length; i++) {
+    const pa = patchAnalyses[i];
+    if (pa.changedColumns.length === 0) continue;
+    const entity = entities[i];
+
+    // Changed columns
+    const colNames = pa.changedColumns.map(c => `\`${c.name}\``).join(', ');
+    lines.push(`**Changed columns** in \`${pa.filePath}\`: ${colNames}`);
     lines.push('');
-    lines.push(`> ⚠️ PR-level escalation: score elevated from ${aggregate.maxEntityScore} → ${aggregate.aggregateScore} due to compound risk factors`);
+
+    // Downstream column breakage (from column lineage intersection)
+    if (entity?.downstream?.columnImpact && entity.downstream.columnImpact.length > 0) {
+      const changedNames = new Set(pa.changedColumns.map(c => c.name.toLowerCase()));
+      const impacted = entity.downstream.columnImpact.filter(ci =>
+        ci.fromColumns.some(fc => {
+          const colName = fc.split('.').pop()?.toLowerCase() || '';
+          return changedNames.has(colName);
+        })
+      );
+      if (impacted.length > 0) {
+        lines.push('**Downstream breakage:**');
+        for (const ci of impacted.slice(0, 8)) {
+          const from = ci.fromColumns.map(c => c.split('.').pop()).join(', ');
+          const to = ci.toColumn.split('.').pop();
+          const toEntityShort = ci.toEntity.split('.').pop();
+          lines.push(`- \`${from}\` → \`${to}\` in \`${toEntityShort}\``);
+        }
+        lines.push('');
+      }
+    }
+
+    // Affected business assets (dashboards, ML models)
+    if (entity?.downstream) {
+      const assets: string[] = [];
+      for (const d of entity.downstream.dashboards) {
+        assets.push(`📊 ${d.name}`);
+      }
+      for (const m of entity.downstream.mlModels) {
+        assets.push(`🤖 ${m.name}`);
+      }
+      if (assets.length > 0) {
+        lines.push(`**Affected assets:** ${assets.join(', ')}`);
+        lines.push('');
+      }
+    }
   }
 
   return lines.join('\n');
 }
 
 /**
- * Render PR-level aggregate risk factors.
+ * Section 3: Governance Triggers — everything OpenMetadata knows about why this matters.
+ */
+function renderGovernanceTriggers(entities: ResolvedEntity[]): string {
+  const lines: string[] = [];
+  lines.push('### 🏛️ Governance Triggers');
+  lines.push('');
+  lines.push('*Signals from OpenMetadata that drive this assessment:*');
+  lines.push('');
+
+  const triggers: string[] = [];
+
+  // Tier
+  const tiers = entities
+    .filter(e => e.entity?.tier)
+    .map(e => `\`${e.entity!.tier}\` on \`${e.entity!.name}\``);
+  if (tiers.length > 0) {
+    triggers.push(`🏷️ **Tier:** ${tiers.join(', ')}`);
+  }
+
+  // PII/GDPR/Sensitive tags
+  const sensitiveEntities = entities.filter(e => {
+    const allTags = [
+      ...(e.entity?.tags || []),
+      ...(e.entity?.columns || []).flatMap(c => c.tags || []),
+    ];
+    return allTags.some(t =>
+      t.tagFQN.includes('PII.Sensitive') ||
+      t.tagFQN.includes('GDPR') ||
+      t.tagFQN.includes('PHI') ||
+      t.tagFQN.includes('PCI') ||
+      t.tagFQN.includes('PersonalData')
+    );
+  });
+  if (sensitiveEntities.length > 0) {
+    const tagList = sensitiveEntities.flatMap(e => {
+      const allTags = [
+        ...(e.entity?.tags || []),
+        ...(e.entity?.columns || []).flatMap(c => c.tags || []),
+      ];
+      return allTags
+        .filter(t =>
+          t.tagFQN.includes('PII.Sensitive') ||
+          t.tagFQN.includes('GDPR') ||
+          t.tagFQN.includes('PHI') ||
+          t.tagFQN.includes('PCI') ||
+          t.tagFQN.includes('PersonalData')
+        )
+        .map(t => `\`${t.tagFQN}\``);
+    });
+    const uniqueTags = [...new Set(tagList)];
+    triggers.push(`🔐 **Sensitive tags:** ${uniqueTags.join(', ')}`);
+  }
+
+  // Glossary terms
+  const glossaryTerms = entities.flatMap(e => e.glossaryTerms || []);
+  if (glossaryTerms.length > 0) {
+    const unique = [...new Set(glossaryTerms)].map(g => `\`${g}\``);
+    triggers.push(`📖 **Glossary terms:** ${unique.join(', ')}`);
+  }
+
+  // Contract status
+  const contracts = entities.filter(e => e.contract?.hasContract);
+  if (contracts.length > 0) {
+    for (const e of contracts) {
+      const c = e.contract!;
+      const status = c.failingTests > 0 ? '🔴 Failing' : '🟢 Passing';
+      const source = c.contractSource === 'official' ? 'Official API' : 'Test Suite';
+      triggers.push(`📄 **Contract:** ${status} (${c.totalTests - c.failingTests}/${c.totalTests} tests) · Source: ${source}`);
+    }
+  }
+
+  // Owner/team
+  const owners = entities
+    .filter(e => e.entity?.owner)
+    .map(e => `**${e.entity!.owner!.displayName || e.entity!.owner!.name}** (${e.entity!.owner!.type})`);
+  const ownerUnique = [...new Set(owners)];
+  if (ownerUnique.length > 0) {
+    triggers.push(`👤 **Owner:** ${ownerUnique.join(', ')}`);
+  }
+
+  if (triggers.length > 0) {
+    lines.push(...triggers.map(t => `- ${t}`));
+  } else {
+    lines.push('- No governance signals detected');
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Section 4: Automation — who was requested and why, what labels applied and why.
+ */
+function renderAutomation(context: RenderContext, entities: ResolvedEntity[]): string {
+  const lines: string[] = [];
+  lines.push('### ⚡ Automation');
+  lines.push('');
+
+  // Reviewers with reasons
+  if (context.reviewerResult) {
+    const { users, teams } = context.reviewerResult;
+    if (users.length > 0 || teams.length > 0) {
+      lines.push('**Requested reviewers:**');
+      for (const user of users) {
+        const ownerEntity = entities.find(e =>
+          e.entity?.owner?.name === user || e.entity?.owner?.displayName === user
+        );
+        const reason = ownerEntity
+          ? `this asset is owned by \`${ownerEntity.entity!.owner!.displayName || ownerEntity.entity!.owner!.name}\` in OpenMetadata`
+          : 'mapped via ownerMapping config';
+        lines.push(`- @${user} — *${reason}*`);
+      }
+      for (const team of teams) {
+        const ownerEntity = entities.find(e =>
+          e.entity?.owner?.type === 'team' && e.entity?.owner?.name === team
+        );
+        const reason = ownerEntity
+          ? `this asset is owned by **${ownerEntity.entity!.owner!.displayName || ownerEntity.entity!.owner!.name}** in OpenMetadata`
+          : 'team ownership detected in OpenMetadata';
+        lines.push(`- team:${team} — *${reason}*`);
+      }
+      lines.push('');
+    }
+  }
+
+  // Labels with reasons
+  if (context.appliedLabels && context.appliedLabels.length > 0) {
+    lines.push('**Applied labels:**');
+    for (const label of context.appliedLabels) {
+      const reason = getLabelReason(label);
+      lines.push(`- \`${label}\` — *${reason}*`);
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
+/** Map label names to human-readable reasons */
+function getLabelReason(label: string): string {
+  const reasons: Record<string, string> = {
+    'lineagelock:tier1-change': 'entity has Tier 1/Tier 2 classification in OpenMetadata',
+    'lineagelock:pii-impact': 'column tags include PII, GDPR, or sensitive data classifications',
+    'lineagelock:contract-risk': 'data contract has failing quality tests',
+    'lineagelock:column-breakage': 'structural column changes detected in PR patches',
+    'lineagelock:high-risk': 'risk score ≥ 60',
+    'lineagelock:no-owner': 'entity has no owner assigned in OpenMetadata',
+  };
+  return reasons[label] || 'governance condition triggered';
+}
+
+/**
+ * Section 5: Overall Assessment table.
+ */
+function renderOverallSummary(report: RiskReport, aggregate?: PRAggregateRisk): string {
+  const lines: string[] = [];
+  const score = aggregate?.aggregateScore ?? report.maxScore;
+  const decision = aggregate?.escalatedDecision ?? report.decision;
+  const level = aggregate?.escalatedLevel ?? report.overallLevel;
+
+  lines.push('<details>');
+  lines.push('<summary>📊 Detailed Scoring</summary>');
+  lines.push('');
+  lines.push('| Metric | Value |');
+  lines.push('|--------|-------|');
+  lines.push(`| **Risk Score** | ${LEVEL_EMOJI[level]} **${score}/100** (${level}) |`);
+  lines.push(`| **Decision** | ${DECISION_EMOJI[decision]} ${DECISION_LABEL[decision]} |`);
+  lines.push(`| **Entities Analyzed** | ${report.summary.totalEntities} |`);
+  lines.push(`| **Resolved** | ${report.summary.resolvedEntities} |`);
+  lines.push(`| **Downstream Impact** | ${report.summary.totalDownstream} entities (${report.summary.totalDashboards} dashboards, ${report.summary.totalMlModels} ML models) |`);
+
+  if (aggregate && aggregate.aggregateScore > aggregate.maxEntityScore) {
+    lines.push('');
+    lines.push(`> ⚠️ PR-level escalation: score elevated from ${aggregate.maxEntityScore} → ${aggregate.aggregateScore} due to compound risk factors`);
+  }
+
+  lines.push('');
+  lines.push('</details>');
+
+  return lines.join('\n');
+}
+
+/**
+ * Section 6: PR-level aggregate risk factors (only shown when escalation has visible effect).
  */
 function renderAggregateSection(aggregate: PRAggregateRisk): string {
   const lines: string[] = [];
   lines.push('<details>');
-  lines.push('<summary>📊 PR-Level Risk Escalation</summary>');
+  lines.push('<summary>📈 PR-Level Risk Escalation</summary>');
   lines.push('');
   lines.push('| Factor | Count | Escalation |');
   lines.push('|--------|-------|------------|');
@@ -144,78 +393,7 @@ function renderAggregateSection(aggregate: PRAggregateRisk): string {
 }
 
 /**
- * Render the blast radius summary.
- */
-function renderBlastRadiusSummary(report: RiskReport): string {
-  const lines: string[] = [];
-  const s = report.summary;
-
-  lines.push('### 💥 Blast Radius');
-  lines.push('');
-  lines.push('| Category | Count |');
-  lines.push('|----------|-------|');
-  lines.push(`| Total downstream entities | ${s.totalDownstream} |`);
-  lines.push(`| Dashboards impacted | ${s.totalDashboards} |`);
-  lines.push(`| ML Models impacted | ${s.totalMlModels} |`);
-
-  return lines.join('\n');
-}
-
-/**
- * Render changed columns summary across all files.
- */
-function renderChangedColumnsSummary(
-  patchAnalyses: PatchAnalysis[],
-  entities: ResolvedEntity[]
-): string {
-  const lines: string[] = [];
-  lines.push('### 🔬 Column-Level Impact');
-  lines.push('');
-
-  for (let i = 0; i < patchAnalyses.length; i++) {
-    const pa = patchAnalyses[i];
-    if (pa.changedColumns.length === 0) continue;
-
-    lines.push(`**\`${pa.filePath}\`** — ${pa.changeDescription}`);
-
-    for (const col of pa.changedColumns) {
-      const icon = col.changeType === 'added' ? '➕' :
-        col.changeType === 'removed' ? '➖' :
-        col.changeType === 'renamed' ? '🔄' : '✏️';
-      const conf = col.confidence === 'high' ? '' : ` *(${col.confidence} confidence)*`;
-      lines.push(`- ${icon} \`${col.name}\` — ${col.changeType}${conf}`);
-    }
-
-    // Cross-reference with column lineage
-    const entity = entities[i];
-    if (entity?.downstream?.columnImpact && entity.downstream.columnImpact.length > 0) {
-      const changedNames = new Set(pa.changedColumns.map(c => c.name.toLowerCase()));
-      const impacted = entity.downstream.columnImpact.filter(ci =>
-        ci.fromColumns.some(fc => {
-          const colName = fc.split('.').pop()?.toLowerCase() || '';
-          return changedNames.has(colName);
-        })
-      );
-      if (impacted.length > 0) {
-        lines.push('');
-        lines.push('  **⚡ Downstream column impact:**');
-        for (const ci of impacted.slice(0, 5)) {
-          lines.push(`  - \`${ci.fromColumns.map(c => c.split('.').pop()).join(', ')}\` → \`${ci.toColumn.split('.').pop()}\` in \`${ci.toEntity}\``);
-        }
-        if (impacted.length > 5) {
-          lines.push(`  - *...and ${impacted.length - 5} more*`);
-        }
-      }
-    }
-
-    lines.push('');
-  }
-
-  return lines.join('\n');
-}
-
-/**
- * Render detail for a single assessed entity.
+ * Section 7: Per-entity detail (collapsible).
  */
 function renderEntityDetail(
   assessment: RiskAssessment,
@@ -298,29 +476,7 @@ function renderEntityDetail(
     lines.push('</details>');
   }
 
-  // Governance info
-  if (entity.entity) {
-    lines.push('');
-    lines.push('<details>');
-    lines.push('<summary>Governance</summary>');
-    lines.push('');
-    const e = entity.entity;
-    lines.push(`- **Owner:** ${e.owner ? `${e.owner.displayName || e.owner.name} (${e.owner.type})` : '⚠️ No owner assigned'}`);
-    lines.push(`- **Tier:** ${e.tier || 'Not classified'}`);
-    if (e.tags && e.tags.length > 0) {
-      lines.push(`- **Tags:** ${e.tags.map((t) => `\`${t.tagFQN}\``).join(', ')}`);
-    } else {
-      lines.push('- **Tags:** None');
-    }
-    // Glossary terms
-    if (entity.glossaryTerms && entity.glossaryTerms.length > 0) {
-      lines.push(`- **Glossary Terms:** ${entity.glossaryTerms.map(g => `\`${g}\``).join(', ')}`);
-    }
-    lines.push('');
-    lines.push('</details>');
-  }
-
-  // Contract status
+  // Contract status (with source)
   if (entity.contract) {
     lines.push('');
     lines.push('<details>');
@@ -328,7 +484,9 @@ function renderEntityDetail(
     lines.push('');
     if (entity.contract.hasContract) {
       const status = entity.contract.failingTests > 0 ? '🔴 Failing' : '🟢 Passing';
+      const source = entity.contract.contractSource === 'official' ? 'Official API' : 'Test Suite';
       lines.push(`- **Status:** ${status}`);
+      lines.push(`- **Source:** ${source}`);
       lines.push(`- **Suite:** \`${entity.contract.testSuiteName}\``);
       lines.push(`- **Tests:** ${entity.contract.totalTests - entity.contract.failingTests}/${entity.contract.totalTests} passing`);
       if (entity.contract.tests) {
@@ -342,15 +500,6 @@ function renderEntityDetail(
     }
     lines.push('');
     lines.push('</details>');
-  }
-
-  // Owner action recommendation
-  if (entity.entity?.owner) {
-    lines.push('');
-    lines.push(`📬 **Action:** Request review from **${entity.entity.owner.displayName || entity.entity.owner.name}** (${entity.entity.owner.type})`);
-  } else if (entity.found) {
-    lines.push('');
-    lines.push('📬 **Action:** ⚠️ No owner — assign an owner in OpenMetadata before merging');
   }
 
   return lines.join('\n');

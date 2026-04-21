@@ -123,17 +123,24 @@ async function run(): Promise<void> {
       core.info(`⚡ PR-level escalation: ${aggregate.maxEntityScore} → ${aggregate.aggregateScore} (${aggregate.factors.length} escalation factors)`);
     }
 
-    // 9. Render and post PR comment
-    const markdown = renderReport(report, entities, patchAnalyses, aggregate);
+    // 9. Compute automation results (before rendering so we can include them in the comment)
+    const automationConfig = config.automation || {};
+    const reviewerResult = determineReviewers(entities, automationConfig);
+    const appliedLabels = determineLabels(report, entities, patchAnalyses, automationConfig);
+
+    // 10. Render and post PR comment (includes automation context)
+    const renderContext = {
+      reviewerResult: (reviewerResult.users.length > 0 || reviewerResult.teams.length > 0) ? reviewerResult : undefined,
+      appliedLabels: appliedLabels.length > 0 ? appliedLabels : undefined,
+    };
+    const markdown = renderReport(report, entities, patchAnalyses, aggregate, renderContext);
     await postOrUpdateComment(githubToken, prContext, markdown);
     core.info('💬 PR comment posted');
 
-    // 10. Workflow automation (reviewer requests, labels, notifications)
-    const automationConfig = config.automation || {};
+    // 11. Execute automation (reviewer requests, labels, notifications)
 
-    // 10a. Request reviewers
+    // 11a. Request reviewers
     try {
-      const reviewerResult = determineReviewers(entities, automationConfig);
       if (reviewerResult.users.length > 0 || reviewerResult.teams.length > 0) {
         const octokit = github.getOctokit(githubToken);
         await octokit.rest.pulls.requestReviewers({
@@ -150,18 +157,17 @@ async function run(): Promise<void> {
       core.warning(`⚠️ Reviewer request failed (non-blocking): ${err.message}`);
     }
 
-    // 10b. Apply labels
+    // 11b. Apply labels
     try {
-      const labels = determineLabels(report, entities, patchAnalyses, automationConfig);
-      if (labels.length > 0) {
+      if (appliedLabels.length > 0) {
         const octokit = github.getOctokit(githubToken);
         await octokit.rest.issues.addLabels({
           owner: prContext.owner,
           repo: prContext.repo,
           issue_number: prContext.pullNumber,
-          labels,
+          labels: appliedLabels,
         });
-        core.info(`🏷️  Applied labels: ${labels.join(', ')}`);
+        core.info(`🏷️  Applied labels: ${appliedLabels.join(', ')}`);
       }
     } catch (err: any) {
       core.warning(`⚠️ Label automation failed (non-blocking): ${err.message}`);
