@@ -69,7 +69,9 @@ app.post('/api/analyze', async (req, res) => {
           tables: entity.downstream?.tables?.length || 0,
           dashboards: entity.downstream?.dashboards?.length || 0,
           mlModels: entity.downstream?.mlModels?.length || 0,
+          columnImpact: entity.downstream?.columnImpact || [],
         },
+        glossaryTerms: entity.glossaryTerms || [],
       };
     });
     res.json({ maxScore: report.maxScore, overallLevel: report.overallLevel, decision: report.decision, summary: report.summary, results });
@@ -475,6 +477,14 @@ footer a{color:var(--saffron);text-decoration:none}
   nav{padding:0 16px}
   .n-links{gap:3px;flex-wrap:wrap}
 }
+
+.search-input{
+  width:100%;padding:10px 14px;border-radius:8px;font-size:0.85rem;
+  background:var(--bg);border:1px solid var(--border);color:var(--text);
+  font-family:var(--font);margin-bottom:14px;outline:none;transition:border-color .15s;
+}
+.search-input:focus{border-color:var(--saffron)}
+.search-input::placeholder{color:var(--text-4)}
 </style>
 </head>
 <body>
@@ -740,6 +750,7 @@ jobs:
           <button class="sel-btn" onclick="selNone()">Clear</button>
         </div>
       </div>
+      <input type="text" class="search-input" id="search-input" placeholder="Search tables by name, FQN, or owner..." oninput="renderChips()">
       <div class="chips" id="chips"></div>
       <button class="go" id="go-btn" onclick="analyze()" disabled>Analyze Risk</button>
     </div>
@@ -769,7 +780,7 @@ function toggleFactors(btn){
 
 async function loadTables(){
   var el=document.getElementById('chips');
-  el.innerHTML='<div style="color:var(--white-muted);font-size:0.85rem">Loading tables from OpenMetadata...</div>';
+  el.innerHTML='<div style="color:var(--text-3);font-size:0.85rem">Loading tables from OpenMetadata...</div>';
   try{
     var r=await fetch('/api/tables');
     var d=await r.json();
@@ -784,7 +795,10 @@ async function loadTables(){
 
 function renderChips(){
   var el=document.getElementById('chips');
+  var q=(document.getElementById('search-input')||{}).value||'';
+  q=q.toLowerCase();
   el.innerHTML=FILES.map(function(f,i){
+    if(q && f.name.toLowerCase().indexOf(q)===-1 && f.fqn.toLowerCase().indexOf(q)===-1 && (!f.owner || f.owner.toLowerCase().indexOf(q)===-1)) return '';
     var s=sel.has(i)?' on':'';
     var m='';
     if(f.tier)m+='<span class="chip-b t">'+f.tier+'</span>';
@@ -875,6 +889,23 @@ function renderResults(d){
       h+='<div class="tag-row">';
       r.tags.forEach(function(t){h+='<span class="tag">'+t+'</span>'});
       h+='</div>';
+    }
+
+    if(r.glossaryTerms && r.glossaryTerms.length){
+      h+='<div style="margin-bottom:12px"><span style="font-size:0.65rem;color:var(--text-4);text-transform:uppercase;letter-spacing:0.05em">Glossary Terms</span>';
+      h+='<div class="tag-row" style="margin-top:4px">';
+      r.glossaryTerms.forEach(function(g){h+='<span class="tag" style="background:rgba(139,92,246,0.08);color:#8b5cf6;border-color:rgba(139,92,246,0.15)">'+g+'</span>'});
+      h+='</div></div>';
+    }
+
+    if(r.downstream.columnImpact && r.downstream.columnImpact.length){
+      h+='<div style="margin-bottom:12px"><span style="font-size:0.65rem;color:var(--text-4);text-transform:uppercase;letter-spacing:0.05em">Column-Level Lineage ('+r.downstream.columnImpact.length+' mappings)</span>';
+      h+='<div style="margin-top:6px;font-size:0.78rem;font-family:var(--mono);color:var(--text-3)">';
+      r.downstream.columnImpact.slice(0,8).forEach(function(cl){
+        h+='<div style="padding:3px 0;border-bottom:1px solid var(--border)">'+cl.fromColumns.join(', ')+' → '+cl.toColumn+' <span style="color:var(--text-4)">in</span> '+cl.toEntity+'</div>';
+      });
+      if(r.downstream.columnImpact.length>8) h+='<div style="padding:3px 0;color:var(--text-4)">...+'+(r.downstream.columnImpact.length-8)+' more</div>';
+      h+='</div></div>';
     }
 
     h+='<button class="fac-toggle" onclick="toggleFactors(this)"><span>\\u25B6</span> Risk Factors ('+tr+'/'+r.factors.length+' triggered)</button>';

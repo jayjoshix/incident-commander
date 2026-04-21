@@ -181,6 +181,11 @@ const FACT_ORDERS_DOWNSTREAM: DownstreamImpact = {
   ],
   topics: [],
   total: 7,
+  columnImpact: [
+    { fromColumns: ['warehouse.analytics.public.fact_orders.amount'], toColumn: 'warehouse.analytics.public.agg_daily_revenue.total_revenue', toEntity: 'warehouse.analytics.public.agg_daily_revenue' },
+    { fromColumns: ['warehouse.analytics.public.fact_orders.customer_id'], toColumn: 'warehouse.analytics.public.agg_customer_ltv.customer_id', toEntity: 'warehouse.analytics.public.agg_customer_ltv' },
+    { fromColumns: ['warehouse.analytics.public.fact_orders.order_id', 'warehouse.analytics.public.fact_orders.amount'], toColumn: 'warehouse.analytics.public.dim_order_details.order_total', toEntity: 'warehouse.analytics.public.dim_order_details' },
+  ],
 };
 
 const STG_PAYMENTS_DOWNSTREAM: DownstreamImpact = {
@@ -192,6 +197,7 @@ const STG_PAYMENTS_DOWNSTREAM: DownstreamImpact = {
   pipelines: [],
   topics: [],
   total: 1,
+  columnImpact: [],
 };
 
 // ─── Data Contracts ───────────────────────────────────────────────────────
@@ -226,6 +232,7 @@ export const DEMO_FACT_ORDERS: ResolvedEntity = {
   lineage: FACT_ORDERS_LINEAGE,
   downstream: FACT_ORDERS_DOWNSTREAM,
   contract: FACT_ORDERS_CONTRACT,
+  glossaryTerms: ['Glossary.Revenue', 'Glossary.CustomerData'],
 };
 
 /** Demo scenario: changing a staging table with no owner */

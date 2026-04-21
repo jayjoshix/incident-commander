@@ -162,6 +162,14 @@ export class OpenMetadataClient {
       // 4. Fetch contract / data quality info
       result.contract = await this.getDataContract(fqn);
 
+      // 5. Extract glossary terms from tags
+      const glossaryTerms = (entity.tags || [])
+        .filter((t: any) => t.source === 'Glossary')
+        .map((t: any) => t.tagFQN);
+      if (glossaryTerms.length > 0) {
+        result.glossaryTerms = glossaryTerms;
+      }
+
       return result;
     } catch (err: any) {
       result.error = `Resolution error: ${err.message || err}`;
@@ -180,6 +188,7 @@ export class OpenMetadataClient {
       pipelines: [],
       topics: [],
       total: 0,
+      columnImpact: [],
     };
 
     const seenIds = new Set<string>();
@@ -213,6 +222,19 @@ export class OpenMetadataClient {
       impact.mlModels.length +
       impact.pipelines.length +
       impact.topics.length;
+
+    // Extract column-level lineage from downstream edges
+    for (const edge of lineage.downstreamEdges) {
+      if (edge.columnLineage && edge.columnLineage.length > 0) {
+        for (const cl of edge.columnLineage) {
+          impact.columnImpact.push({
+            fromColumns: cl.fromColumns || [],
+            toColumn: cl.toColumn || '',
+            toEntity: edge.toEntity.fullyQualifiedName || edge.toEntity.name,
+          });
+        }
+      }
+    }
 
     return impact;
   }

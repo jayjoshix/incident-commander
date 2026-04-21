@@ -119,6 +119,15 @@ export interface DownstreamImpact {
   pipelines: LineageNode[];
   topics: LineageNode[];
   total: number;
+  /** Column-level lineage: which columns flow downstream */
+  columnImpact: ColumnImpact[];
+}
+
+/** A single column-level lineage mapping */
+export interface ColumnImpact {
+  fromColumns: string[];
+  toColumn: string;
+  toEntity: string;
 }
 
 /** Fully resolved entity context for risk scoring */
@@ -137,6 +146,8 @@ export interface ResolvedEntity {
   downstream?: DownstreamImpact;
   /** Data contract / test status */
   contract?: DataContract;
+  /** Glossary terms linked to this entity */
+  glossaryTerms?: string[];
   /** Error message if resolution failed */
   error?: string;
 }
