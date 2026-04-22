@@ -35,9 +35,20 @@ export {
 // Risk
 export { scoreEntity, scoreEntities, scoreToLevel, computeDecision } from './risk/scoring';
 export type { RiskAssessment, RiskReport, RiskFactor, RiskLevel, Decision } from './risk/types';
+export { computePRAggregate } from './risk/pr-aggregate';
+export type { PRAggregateRisk } from './risk/pr-aggregate';
+
+// Diff / Patch
+export { parsePatch } from './diff/patch-parser';
+export type { PatchAnalysis, ChangedColumn } from './diff/patch-parser';
+
+// Automation
+export { determineReviewers, determineLabels, buildNotificationPayload } from './automation/workflow';
+export type { ReviewerResult, AutomationConfig } from './automation/workflow';
 
 // Report
 export { renderReport, renderCompactSummary } from './report/renderer';
+export type { RenderContext } from './report/renderer';
 
 // Fixtures
 export { DEMO_ENTITIES, DEMO_CHANGED_FILES } from './fixtures/demo-data';

@@ -99,7 +99,7 @@ PR Event → File Detection → Patch Parsing → Asset Resolution → OpenMetad
 
 **Quality:**
 - Full TypeScript with strict mode
-- 8 test suites with 90+ test cases covering patch parsing, scoring, aggregation, automation, and rendering
+- 8 test suites with **96 test cases** covering patch parsing, scoring, aggregation, automation, and rendering
 - Type-safe OpenMetadata API response handling
 - False-positive filtering for sensitive tag detection
 

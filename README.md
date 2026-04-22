@@ -4,7 +4,7 @@
 
 [![OpenMetadata Integration](https://img.shields.io/badge/OpenMetadata-Integrated-blue?style=flat-square)](https://open-metadata.org)
 [![GitHub Action](https://img.shields.io/badge/GitHub_Action-Ready-green?style=flat-square)](https://github.com/features/actions)
-[![Tests](https://img.shields.io/badge/Tests-90%2B_passing-brightgreen?style=flat-square)](#testing)
+[![Tests](https://img.shields.io/badge/Tests-96_passing-brightgreen?style=flat-square)](#testing)
 [![License](https://img.shields.io/badge/License-Apache_2.0-orange?style=flat-square)](LICENSE)
 
 ---
@@ -22,12 +22,32 @@ When a PR changes a dbt model, SQL file, or schema YAML, LineageLock:
 1. **Detects** changed data model files in the PR
 2. **Parses patches** to detect changed columns via deterministic SQL/YAML diff analysis
 3. **Resolves** file paths to OpenMetadata entities via configurable naming conventions
-4. **Fetches** lineage, column lineage, ownership, tags, glossary terms, tier, and data contracts
-5. **Intersects** changed columns with column-level lineage for precise downstream impact
+4. **Fetches** lineage, column lineage, ownership, tags, glossary terms, tier, and data contracts from OpenMetadata
+5. **Intersects** changed columns with column-level lineage — "this column flows into *this downstream column* in *this dashboard*"
 6. **Computes** a deterministic risk score (0–100) with PR-level aggregate escalation
-7. **Posts** a detailed Markdown risk report with column-level impact and owner action recommendations
-8. **Automates** reviewer requests, risk labels, and Slack/Teams/webhook notifications
+7. **Posts** a PR comment leading with column-aware impact, OpenMetadata governance signals, and automation reasons
+8. **Automates** reviewer requests (users + teams), risk labels, and Slack/Teams/webhook notifications
 9. **Blocks or warns** based on configurable thresholds
+
+The PR comment structure:
+```
+🔴 CRITICAL · 100/100 · 🚫 Block
+
+### 🔬 What Changed → What Breaks   ← HEADLINE
+   amount → total_revenue in agg_daily_revenue
+   customer_id → customer_id in agg_customer_ltv
+   Affected: Revenue Dashboard, churn_predictor
+
+### 🏛️ Governance Triggers          ← OpenMetadata signals
+   Tier.Tier1 · PII.Sensitive · Glossary.Revenue
+   Contract: Failing · Owner: Data Engineering Team
+
+### ⚡ Automation                    ← with reasons
+   team:data-engineering — owned by Data Engineering Team in OM
+   lineagelock:pii-impact — column tags include PII/GDPR
+
+<details> 📊 Detailed Scoring </details>
+```
 
 ```
 PR opened → Patch parsed → Files resolved → OpenMetadata lookup → Column intersection → Risk scored → PR aggregate → Comment + Labels + Reviewers + Webhooks
@@ -70,39 +90,49 @@ LineageLock has been verified against the **live OpenMetadata sandbox** (`sandbo
 
 ## 🔒 LineageLock Risk Report
 
-### Overall Assessment
+🔴 **CRITICAL** · 100/100 · 🚫 Block — manual review needed
+
+### 🔬 What Changed → What Breaks
+
+**Changed columns** in `models/marts/fact_orders.sql`: `amount`, `customer_id`, `discount_pct`
+
+**Downstream breakage:**
+- `amount` → `total_revenue` in `agg_daily_revenue`
+- `customer_id` → `customer_id` in `agg_customer_ltv`
+- `order_id, amount` → `order_total` in `dim_order_details`
+
+**Affected assets:** 📊 Revenue Dashboard, 📊 Executive KPIs, 🤖 churn_predictor
+
+### 🏛️ Governance Triggers
+
+*Signals from OpenMetadata that drive this assessment:*
+
+- 🏷️ **Tier:** `Tier.Tier1` on `fact_orders`
+- 🔐 **Sensitive tags:** `PII.Sensitive`, `GDPR.Subject`
+- 📖 **Glossary terms:** `Glossary.Revenue`, `Glossary.CustomerData`
+- 📄 **Contract:** 🔴 Failing (3/4 tests) · Source: Test Suite
+- 👤 **Owner:** **Data Engineering Team** (team)
+
+### ⚡ Automation
+
+**Requested reviewers:**
+- team:data-engineering — *this asset is owned by **Data Engineering Team** in OpenMetadata*
+
+**Applied labels:**
+- `lineagelock:tier1-change` — *entity has Tier 1/Tier 2 classification in OpenMetadata*
+- `lineagelock:pii-impact` — *column tags include PII, GDPR, or sensitive data classifications*
+- `lineagelock:contract-risk` — *data contract has failing quality tests*
+
+<details><summary>📊 Detailed Scoring</summary>
 
 | Metric | Value |
 |--------|-------|
-| **Risk Score** | 🟡 **40/100** (MEDIUM) |
-| **Decision** | ⚠️ Review required |
-| **Entities Analyzed** | 3 |
-| **Resolved** | 3 |
-| **Unresolved** | 0 |
+| **Risk Score** | 🔴 **100/100** (CRITICAL) |
+| **Decision** | 🚫 Block — manual review needed |
+| **Entities Analyzed** | 1 |
+| **Downstream Impact** | 7 entities (2 dashboards, 1 ML models) |
 
-### 💥 Blast Radius
-
-| Category | Count |
-|----------|-------|
-| Total downstream entities | 12 |
-| Dashboards impacted | 0 |
-| ML Models impacted | 0 |
-
-### 🟡 `models/marts/fact_orders.sql`
-**Entity:** `acme_nexus_analytics.ANALYTICS.MARTS.fact_orders`
-**Score:** 40/100 (MEDIUM)
-
-| Factor | Points | Status | Detail |
-|--------|--------|--------|--------|
-| Contract Violation | 0/40 | ✅ Clear | No contract defined |
-| Critical Tier Asset | 20/20 | 🔴 Triggered | Asset is Tier.Tier1 |
-| Sensitive Data Tags | 20/20 | 🔴 Triggered | DataSensitivity.Confidential, DataSensitivity.Highly Confidential |
-| Downstream Dashboards | 0/10 | ✅ Clear | No downstream dashboards |
-| Downstream ML Models | 0/10 | ✅ Clear | No downstream ML models |
-| High Downstream Count | 0/10 | ✅ Clear | 3 downstream entities (threshold: 5) |
-| No Clear Owner | 0/10 | ✅ Clear | Owner: admin (user) |
-
-📬 **Notify:** admin
+</details>
 
 </details>
 

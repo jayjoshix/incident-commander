@@ -103,7 +103,6 @@ export class OpenMetadataClient {
       if (contracts.length > 0) {
         const contract = contracts[0];
         // Official contract has a status field: 'Active', 'Aborted', 'Expired'
-        const isActive = contract.status === 'Active' || !contract.status;
         const results = contract.results || [];
         const failingTests = results.filter((r: any) => r.status === 'Failed').length;
         const totalTests = results.length;
