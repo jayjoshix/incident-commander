@@ -14,9 +14,14 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const { OpenMetadataClient } = require('../dist/openmetadata/client');
 const { scoreEntities } = require('../dist/risk/scoring');
+const { computePRAggregate } = require('../dist/risk/pr-aggregate');
 const { loadConfig } = require('../dist/config/loader');
 const { evaluatePolicies } = require('../dist/policy/approval-engine');
 const { generateRolloutGuidance } = require('../dist/policy/rollout-guidance');
+const { computeTrustSignal } = require('../dist/trust/trust-signal');
+const { generateRemediations } = require('../dist/remediation/remediation');
+const { buildAuditTrail } = require('../dist/audit/audit-trail');
+const { routeByRiskType } = require('../dist/routing/routing');
 
 const OM_URL = process.env.OPENMETADATA_URL || 'https://sandbox.open-metadata.org';
 const OM_TOKEN = process.env.OPENMETADATA_TOKEN;
@@ -58,6 +63,19 @@ app.post('/api/analyze', async (req, res) => {
     // Dummy patches for website (no actual PR diff available)
     const dummyPatches = entities.map(e => ({ filePath: e.filePath, changedColumns: [], isStructuralChange: false, changeDescription: '' }));
     const policyResult = evaluatePolicies(entities, dummyPatches, config);
+    const aggregate = computePRAggregate(report, entities, dummyPatches, config);
+
+    // New governance modules
+    const trustSignal = computeTrustSignal(entities, report, policyResult);
+    const routingResult = routeByRiskType(entities, report, policyResult);
+    const remediationPlan = generateRemediations(entities, dummyPatches, report, policyResult);
+    const auditTrail = buildAuditTrail({
+      entities, report, aggregate, policyResult,
+      patchAnalyses: dummyPatches,
+      reviewerResult: { users: [...policyResult.allRequiredUsers, ...routingResult.users], teams: [...policyResult.allRequiredTeams, ...routingResult.teams] },
+      appliedLabels: [],
+    });
+
     const results = report.assessments.map((a, i) => {
       const entity = entities[i];
       const ownerObj = entity.entity?.owner;
@@ -86,7 +104,18 @@ app.post('/api/analyze', async (req, res) => {
       name: p.name, severity: p.severity, reason: p.reason,
       requiredTeams: p.requiredTeams, requiredUsers: p.requiredUsers, signals: p.signals,
     }));
-    res.json({ maxScore: report.maxScore, overallLevel: report.overallLevel, decision: report.decision, summary: report.summary, results, policies, isBlocked: policyResult.isBlocked, allRequiredTeams: policyResult.allRequiredTeams, allRequiredUsers: policyResult.allRequiredUsers });
+    res.json({
+      maxScore: report.maxScore, overallLevel: report.overallLevel,
+      decision: report.decision, summary: report.summary,
+      results, policies,
+      isBlocked: policyResult.isBlocked,
+      allRequiredTeams: policyResult.allRequiredTeams,
+      allRequiredUsers: policyResult.allRequiredUsers,
+      trustSignal,
+      remediationPlan,
+      auditTrail,
+      routingResult,
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -534,6 +563,68 @@ footer a{color:var(--saffron);text-decoration:none}
 .ro-col{font-weight:600;font-size:0.82rem;color:var(--text);margin-bottom:6px}
 .ro-step{display:flex;gap:8px;padding:4px 0;font-size:0.78rem;color:var(--text-3)}
 .ro-step strong{color:var(--text-2)}
+
+/* ────────── Trust Signal ────────── */
+.trust-wrap{margin-bottom:20px;border-radius:14px;border:1px solid rgba(99,102,241,0.18);overflow:hidden;background:var(--surface)}
+.trust-head{padding:14px 20px;font-weight:700;font-size:1rem;background:rgba(99,102,241,0.06)}
+.trust-summary{padding:6px 20px 10px;font-size:0.82rem;color:var(--text-3);border-bottom:1px solid var(--border)}
+.trust-dims{padding:14px 20px;display:grid;gap:10px}
+.trust-dim{background:var(--surface-2);border-radius:8px;padding:10px 12px;border:1px solid var(--border)}
+.trust-dim-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.trust-dim-name{font-size:0.8rem;font-weight:600;color:var(--text-2)}
+.trust-dim-grade{font-size:0.8rem;font-weight:700}
+.trust-bar{height:5px;border-radius:3px;background:rgba(255,255,255,0.06);margin-bottom:5px;overflow:hidden}
+.trust-bar-fill{height:100%;border-radius:3px;transition:width .4s ease}
+.trust-dim-detail{font-size:0.72rem;color:var(--text-4)}
+.trust-risks{padding:0 20px 14px;display:flex;flex-direction:column;gap:4px}
+.trust-risk{font-size:0.78rem;color:var(--yellow);background:rgba(202,138,4,0.06);padding:5px 10px;border-radius:6px;border:1px solid rgba(202,138,4,0.12)}
+
+/* ────────── Risk-Type Routing ────────── */
+.routing-wrap{margin-bottom:20px;border-radius:14px;border:1px solid rgba(14,165,233,0.18);overflow:hidden}
+.routing-head{padding:12px 20px;font-weight:700;font-size:0.9rem;background:rgba(14,165,233,0.06);color:#38bdf8}
+.routing-item{display:grid;grid-template-columns:90px 20px 1fr;align-items:start;gap:6px;padding:9px 20px;border-top:1px solid rgba(14,165,233,0.08);font-size:0.78rem;background:var(--surface)}
+.routing-type{font-weight:700;color:#38bdf8;font-family:monospace;font-size:0.75rem;background:rgba(14,165,233,0.08);padding:2px 6px;border-radius:4px}
+.routing-arrow{color:var(--text-4);font-size:0.9rem}
+.routing-to{font-weight:600;color:var(--text-2)}
+.routing-reason{grid-column:1/-1;font-size:0.72rem;color:var(--text-4);padding-left:0;margin-top:1px}
+
+/* ────────── Remediation accordion ────────── */
+.rem-wrap{margin-bottom:20px;border-radius:14px;border:1px solid rgba(34,197,94,0.18);overflow:hidden}
+.rem-head{padding:13px 20px;font-weight:700;font-size:0.9rem;background:rgba(34,197,94,0.06);color:#4ade80;display:flex;align-items:center;gap:8px}
+.rem-count{font-size:0.78rem;font-weight:500;color:var(--text-3)}
+.rem-item{border-top:1px solid rgba(34,197,94,0.1);background:var(--surface)}
+.rem-summary{padding:10px 20px;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:0.83rem;list-style:none;outline:none}
+.rem-summary:hover{background:rgba(34,197,94,0.03)}
+.rem-id{font-family:monospace;font-size:0.7rem;color:var(--text-4);background:var(--surface-2);padding:2px 6px;border-radius:4px;border:1px solid var(--border)}
+.rem-pri{font-size:1rem}
+.rem-title{font-weight:600;color:var(--text-2);flex:1}
+.rem-body{padding:10px 20px 16px;border-top:1px dashed rgba(34,197,94,0.1)}
+.rem-desc{font-size:0.8rem;color:var(--text-3);margin:0 0 10px;padding:8px 12px;background:rgba(34,197,94,0.04);border-radius:6px;border:1px solid rgba(34,197,94,0.1)}
+.rem-steps{display:flex;flex-direction:column;gap:7px;margin-bottom:10px}
+.rem-step{display:flex;gap:10px;font-size:0.79rem;color:var(--text-3)}
+.rem-step-n{font-weight:700;color:#4ade80;min-width:18px;font-family:monospace}
+.rem-step strong{color:var(--text-2)}
+.rem-step em{color:var(--text-4);font-size:0.73rem}
+.rem-step code{background:var(--surface-2);padding:1px 5px;border-radius:3px;font-size:0.72rem;color:#a78bfa}
+.rem-followup{font-size:0.77rem;margin-top:8px;padding:8px 12px;background:var(--surface-2);border-radius:6px;border:1px solid var(--border)}
+.rem-followup ul{margin:4px 0 0 14px;padding:0;color:var(--text-3)}
+.rem-followup li{margin:2px 0}
+.rem-more{padding:10px 20px;font-size:0.76rem;color:var(--text-4);background:var(--surface);border-top:1px solid rgba(34,197,94,0.08)}
+
+/* ────────── Audit Trail ────────── */
+.audit-wrap{margin-bottom:20px;border-radius:14px;border:1px solid rgba(148,163,184,0.18);overflow:hidden}
+.audit-head{padding:12px 20px;font-weight:700;font-size:0.9rem;background:rgba(148,163,184,0.05);color:var(--text-2);cursor:pointer;display:flex;align-items:center;gap:10px;list-style:none;outline:none}
+.audit-ts{font-size:0.72rem;font-weight:400;color:var(--text-4);font-family:monospace;margin-left:auto}
+.audit-body{padding:14px 20px;background:var(--surface)}
+.audit-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+.audit-row{display:flex;flex-direction:column;background:var(--surface-2);border-radius:7px;padding:8px 10px;border:1px solid var(--border)}
+.audit-k{font-size:0.68rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-4);margin-bottom:2px}
+.audit-v{font-size:0.8rem;font-weight:600;color:var(--text-2)}
+.audit-policies{margin-bottom:10px}
+.audit-pol{font-size:0.78rem;color:var(--text-3);padding:5px 0;border-bottom:1px solid var(--border)}
+.audit-pol:last-child{border:none}
+.audit-note{font-size:0.74rem;color:var(--text-4);padding:8px 10px;background:rgba(148,163,184,0.05);border-radius:6px;border:1px solid var(--border)}
+.audit-note code{color:#a78bfa;background:var(--surface-2);padding:1px 5px;border-radius:3px}
 </style>
 </head>
 <body>
@@ -929,6 +1020,48 @@ function renderResults(d){
     h+='</div>';
   }
 
+  // ── Trust Signal panel ──
+  if(d.trustSignal){
+    var ts=d.trustSignal;
+    var tg=ts.overallGrade;
+    var tgColor=tg==='A'?'#22c55e':tg==='B'?'#84cc16':tg==='C'?'#f59e0b':tg==='D'?'#f97316':'#ef4444';
+    h+='<div class="trust-wrap">';
+    h+='<div class="trust-head" style="color:'+tgColor+'">🏛️ Trust Signal — Grade '+tg+' ('+ts.overallScore+'/100)</div>';
+    h+='<div class="trust-summary">'+ts.summary+'</div>';
+    h+='<div class="trust-dims">';
+    ts.dimensions.forEach(function(dim){
+      var dg=dim.grade;
+      var dgc=dg==='A'?'#22c55e':dg==='B'?'#84cc16':dg==='C'?'#f59e0b':dg==='D'?'#f97316':'#ef4444';
+      h+='<div class="trust-dim">';
+      h+='<div class="trust-dim-top"><span class="trust-dim-name">'+dim.name+'</span><span class="trust-dim-grade" style="color:'+dgc+'">'+dg+' ('+dim.score+')</span></div>';
+      h+='<div class="trust-bar"><div class="trust-bar-fill" style="width:'+dim.score+'%;background:'+dgc+'"></div></div>';
+      h+='<div class="trust-dim-detail">'+dim.detail+'</div>';
+      h+='</div>';
+    });
+    h+='</div>';
+    if(ts.topRisks&&ts.topRisks.length){
+      h+='<div class="trust-risks">';
+      ts.topRisks.forEach(function(r){h+='<div class="trust-risk">⚠️ '+r+'</div>';});
+      h+='</div>';
+    }
+    h+='</div>';
+  }
+
+  // ── Routing Reasons ──
+  if(d.routingResult&&d.routingResult.routingReasons&&d.routingResult.routingReasons.length){
+    h+='<div class="routing-wrap">';
+    h+='<div class="routing-head">🔀 Risk-Type Routing</div>';
+    d.routingResult.routingReasons.forEach(function(r){
+      h+='<div class="routing-item">';
+      h+='<span class="routing-type">'+r.riskType+'</span>';
+      h+='<span class="routing-arrow">→</span>';
+      h+='<span class="routing-to">'+r.assignedTo.join(', ')+'</span>';
+      h+='<span class="routing-reason">'+r.reason+'</span>';
+      h+='</div>';
+    });
+    h+='</div>';
+  }
+
   h+='<div class="stat-row">';
   h+='<div class="stat"><div class="stat-n">'+d.summary.totalDownstream+'</div><div class="stat-l">Downstream</div></div>';
   h+='<div class="stat"><div class="stat-n">'+d.summary.totalDashboards+'</div><div class="stat-l">Dashboards</div></div>';
@@ -1012,6 +1145,69 @@ function renderResults(d){
     });
     h+='</div></div>';
   });
+
+  // ── Proposed Safe Fixes ──
+  if(d.remediationPlan&&d.remediationPlan.totalItems>0){
+    var rp=d.remediationPlan;
+    var pIcon={'critical':'🔴','high':'🟠','medium':'🟡','low':'🟢'};
+    h+='<div class="rem-wrap">';
+    h+='<div class="rem-head">🔧 Proposed Safe Fixes <span class="rem-count">'+rp.totalItems+' action'+(rp.totalItems===1?'':'s');
+    if(rp.criticalCount>0) h+=' · <span style="color:#ef4444">'+rp.criticalCount+' critical</span>';
+    h+='</span></div>';
+    rp.items.slice(0,5).forEach(function(item){
+      h+='<details class="rem-item">';
+      h+='<summary class="rem-summary">';
+      h+='<span class="rem-id">'+item.id+'</span>';
+      h+='<span class="rem-pri">'+(pIcon[item.priority]||'•')+'</span>';
+      h+='<span class="rem-title">'+item.title+'</span>';
+      h+='</summary>';
+      h+='<div class="rem-body">';
+      h+='<p class="rem-desc">'+item.description+'</p>';
+      h+='<div class="rem-steps">';
+      item.steps.forEach(function(s){
+        h+='<div class="rem-step"><span class="rem-step-n">'+s.step+'</span><div><strong>'+s.action+'</strong> — '+s.detail;
+        if(s.tool) h+=' <em>('+s.tool+')</em>';
+        if(s.owner) h+=' · <code>'+s.owner+'</code>';
+        h+='</div></div>';
+      });
+      h+='</div>';
+      if(item.followUpPRScope&&item.followUpPRScope.length){
+        h+='<div class="rem-followup"><strong>Follow-up PR scope:</strong><ul>';
+        item.followUpPRScope.forEach(function(s){h+='<li>☐ '+s+'</li>';});
+        h+='</ul></div>';
+      }
+      h+='</div></details>';
+    });
+    if(rp.totalItems>5) h+='<div class="rem-more">+'+( rp.totalItems-5)+' more in artifacts/lineagelock-remediation.json</div>';
+    h+='</div>';
+  }
+
+  // ── Audit Trail summary ──
+  if(d.auditTrail){
+    var at=d.auditTrail;
+    var atDec=at.isBlocked?'🚫 BLOCKED':at.decision==='fail'?'🔴 FAIL':at.decision==='warn'?'⚠️ WARN':'✅ PASS';
+    h+='<details class="audit-wrap">';
+    h+='<summary class="audit-head">📋 Governance Audit Trail <span class="audit-ts">'+at.timestamp.slice(0,19).replace('T',' ')+'</span></summary>';
+    h+='<div class="audit-body">';
+    h+='<div class="audit-grid">';
+    h+='<div class="audit-row"><span class="audit-k">Decision</span><span class="audit-v">'+atDec+'</span></div>';
+    h+='<div class="audit-row"><span class="audit-k">Score</span><span class="audit-v">'+at.aggregateScore+'/100 ('+at.aggregateLevel+')</span></div>';
+    h+='<div class="audit-row"><span class="audit-k">Policies Triggered</span><span class="audit-v">'+at.policies.length+'</span></div>';
+    h+='<div class="audit-row"><span class="audit-k">Reviewers Requested</span><span class="audit-v">'+(at.routing.requestedUsers.concat(at.routing.requestedTeams.map(function(t){return'team:'+t;})).join(', ')||'none')+'</span></div>';
+    h+='<div class="audit-row"><span class="audit-k">Active Quality Issues</span><span class="audit-v">'+at.observability.totalActiveQualityIssues+'</span></div>';
+    h+='<div class="audit-row"><span class="audit-k">Entities Analyzed</span><span class="audit-v">'+at.entities.length+' ('+at.entities.filter(function(e){return e.found;}).length+' resolved)</span></div>';
+    h+='<div class="audit-row"><span class="audit-k">Version</span><span class="audit-v">LineageLock v'+at.version+'</span></div>';
+    h+='</div>';
+    if(at.policies.length){
+      h+='<div class="audit-policies"><strong>Triggered Policies:</strong>';
+      at.policies.forEach(function(p){
+        h+='<div class="audit-pol">'+(p.severity==='block'?'🚫':'⚠️')+' <strong>'+p.policyName+'</strong> — '+p.reason.slice(0,120)+'</div>';
+      });
+      h+='</div>';
+    }
+    h+='<div class="audit-note">🔒 Full record saved to <code>artifacts/lineagelock-audit.json</code></div>';
+    h+='</div></details>';
+  }
 
   el.innerHTML=h;
   el.style.display='block';
