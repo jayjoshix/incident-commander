@@ -1,10 +1,11 @@
 # 🔒 LineageLock
 
-**GitHub PR guard for data changes — blast radius, governance risk, and contract compatibility powered by [OpenMetadata](https://open-metadata.org).**
+**OpenMetadata-native merge governance and remediation system for data teams.**
+LineageLock catches the data problems code review never sees — before they reach production.
 
-[![OpenMetadata Integration](https://img.shields.io/badge/OpenMetadata-Integrated-blue?style=flat-square)](https://open-metadata.org)
+[![OpenMetadata Integration](https://img.shields.io/badge/OpenMetadata-Native-blue?style=flat-square)](https://open-metadata.org)
 [![GitHub Action](https://img.shields.io/badge/GitHub_Action-Ready-green?style=flat-square)](https://github.com/features/actions)
-[![Tests](https://img.shields.io/badge/Tests-135_passing-brightgreen?style=flat-square)](#testing)
+[![Tests](https://img.shields.io/badge/Tests-154_passing-brightgreen?style=flat-square)](#testing)
 [![License](https://img.shields.io/badge/License-Apache_2.0-orange?style=flat-square)](LICENSE)
 
 ---
@@ -17,54 +18,60 @@ Data teams routinely change dbt models, SQL files, and schema definitions withou
 
 ## What It Does
 
-When a PR changes a dbt model, SQL file, or schema YAML, LineageLock answers 5 questions — all sourced directly from OpenMetadata:
+When a PR changes a dbt model, SQL file, or schema YAML, LineageLock does 7 things — all sourced directly from OpenMetadata:
 
-1. **What changed?** — Deterministic SQL/YAML patch analysis detects changed columns
-2. **What breaks?** — Column-level lineage intersection shows exact downstream columns, dashboards, and ML models
-3. **Who must review?** — Approval policies derived from Tier, PII tags, glossary terms, contracts, and ownership
-4. **Which governance policy triggered?** — 5 built-in policies driven by OpenMetadata metadata
-5. **Why is OpenMetadata required?** — Without lineage, ownership, contracts, and classifications, none of this is possible
+1. **Blast Radius** — Column-level lineage intersection shows exact downstream columns, dashboards, and ML models
+2. **Risk Scoring** — 8-factor score including active quality issues from OM observability
+3. **Governance Policies** — 5 built-in policies driven by Tier, PII tags, glossary terms, contracts, and ownership
+4. **Safe Fix Recommendations** — Per-risk remediation steps with follow-up PR checklists (contract fix, PII review, dashboard migration, dual-write)
+5. **Approval Audit Trail** — Every governance decision is persisted to `artifacts/lineagelock-audit.json` for compliance
+6. **Trust Signal** — A–F grade across 5 dimensions (owner coverage, contract health, observability, governance posture, lineage)
+7. **Risk-Type Routing** — PII → privacy-team, contract → data-quality, dashboard → bi-owners, no-owner → platform-admin
+8. **Rollout & Rollback Guidance** — 5 strategy-specific migration patterns with rollback trigger conditions
+
+> **This is not a PR lint bot. This is an OpenMetadata-native governance and remediation system.**
 
 The PR comment structure:
 ```
 🔴 CRITICAL · 100/100 · 🚫 Block
 
-### 🚫 Merge Blocked — 2 Approval Policies Require Sign-off
-   🚫 Critical tier asset with sensitive data
-   Asset is Tier.Tier1 and contains sensitive data columns.
-   Required: team:data-platform, team:business-owners
-   Signals: Tier.Tier1 · PII.Sensitive · GDPR.Subject
+### 🚫 Merge Blocked — 2 Approval Policies
+   🚫 Critical tier + PII · Signals: Tier.Tier1, PII.Sensitive
+   🚫 Failing contract + dashboards · Signals: 1 failing test, Revenue Dashboard
 
-   🚫 Failing contract with downstream dashboards
-   Required: team:data-quality
-   Signals: 1 failing test · Dashboard: Revenue Dashboard
+### 🟢 Trust Signal — Grade C (58/100)
+   Owner Coverage: 50/100 | Contract Health: 60/100 | Governance: 40/100
 
 ### 🔬 What Changed → What Breaks
    amount → total_revenue in agg_daily_revenue
-   customer_id → customer_id in agg_customer_ltv
    Affected: 📊 Revenue Dashboard, 🤖 churn_predictor
 
-### 🏛️ Governance Triggers (from OpenMetadata)
-   Tier.Tier1 · PII.Sensitive · Glossary.Revenue · Contract: Failing
-   Owner: Data Engineering Team
+### 🔀 Routing Reasons
+   PII → team:privacy-team | Contract → team:data-quality | Dashboard → team:bi-owners
 
-### ⚡ Automation
-   Reviewers: team:data-platform, team:business-owners, team:data-quality
-   Labels: tier1-change, pii-impact, contract-risk, column-breakage
+### 🔧 Proposed Safe Fixes (5 items)
+   🔴 REM-001: Fix 1/5 failing contract tests (contract-update, critical)
+   🔴 REM-002: PII access review — GDPR Art.35 assessment required (pii-access-review, critical)
+   🟠 REM-003: Migrate 2 dashboards — Revenue Dashboard, Executive KPIs (dashboard-migration)
+   🟠 REM-004: Resolve 2 active quality issues before merging (quality-fix)
+   🟡 REM-005: Glossary review for Glossary.Revenue (glossary-review)
 
-> ⚠️ Active Quality Issues (from OpenMetadata)
-> ❌ amount_positive — 142 rows where amount <= 0 (3d ago)
-> ❌ freshness_check — Table not updated in 8h (6h ago)
+### 📋 Governance Audit Trail (collapsible)
+   Decision: FAIL | Policies: 3 | Reviewers: 8 | Labels: 5
+   → artifacts/lineagelock-audit.json
 
-📋 Safe Rollout Guidance (collapsible)
-   amount (modified): Validate → Test in staging → Update contract
-   customer_id (modified): Validate → Test in staging → Update contract
-
-<details> 📊 Detailed Scoring </details>
+### 🔐 Safe Rollout Plan — strategy: contract-first
+   1. Update data contract before merging
+   2. Verify tests pass in staging
+   3. Tier-1 sign-off required
+   Rollback triggers: pipeline failure within 2h → revert immediately
 ```
 
 ```
-PR opened → Patch parsed → Files resolved → OpenMetadata API → Observability enrichment → Column intersection → Risk scored → PR aggregate → Policy engine → Comment + Check Run + Labels + Reviewers + Webhooks
+PR opened → Patch parsed → Files resolved → OpenMetadata API → Observability enrichment
+→ Column intersection → Risk scored (8 factors) → PR aggregate → Policy engine
+→ Trust signal → Risk routing → Remediation plan → Audit trail
+→ Comment + Check Run + Labels + Reviewers + Webhooks + Artifacts
 ```
 
 ## Live Sandbox Verification ✅
