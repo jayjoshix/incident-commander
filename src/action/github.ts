@@ -123,3 +123,38 @@ export async function postOrUpdateComment(
     });
   }
 }
+
+/**
+ * Create a GitHub Check Run with the LineageLock verdict.
+ *
+ * This surfaces the result directly in the GitHub PR checks UI —
+ * not just as a comment, but as a blocking/passing check that
+ * integrates with branch protection rules.
+ *
+ * Requires `checks: write` permission in the workflow.
+ */
+export async function createCheckRun(
+  token: string,
+  ctx: PRContext,
+  result: {
+    conclusion: 'failure' | 'neutral' | 'success';
+    title: string;
+    summary: string;
+    details?: string;
+  }
+): Promise<void> {
+  const octokit = github.getOctokit(token);
+  await octokit.rest.checks.create({
+    owner: ctx.owner,
+    repo: ctx.repo,
+    name: 'LineageLock',
+    head_sha: ctx.sha,
+    status: 'completed',
+    conclusion: result.conclusion,
+    output: {
+      title: result.title,
+      summary: result.summary,
+      text: result.details,
+    },
+  });
+}

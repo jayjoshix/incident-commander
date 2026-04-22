@@ -6,11 +6,11 @@
 
 ## Project Name
 
-**LineageLock** — GitHub PR guard for data changes
+**LineageLock** — OpenMetadata-native merge governance for data PRs
 
 ## Tagline
 
-*Turns OpenMetadata from a passive catalog into active merge-time governance.*
+*Every data PR answered: what changed, what breaks, who must review, which policy triggered, why OpenMetadata is required.*
 
 ---
 
@@ -29,77 +29,103 @@ The infrastructure to detect these problems already exists in OpenMetadata — l
 
 ## Solution
 
-LineageLock bridges this gap. It's a GitHub Action that runs on every PR that touches data model files. It:
+LineageLock is a GitHub Action that runs on every PR touching data model files. For each changed file it answers 5 questions — all sourced directly from OpenMetadata:
 
-1. Detects changed dbt models, SQL files, and schema YAML in the PR
-2. **Parses PR patches to detect changed columns** using deterministic SQL/YAML diff analysis
-3. Resolves each file to an OpenMetadata entity using configurable path-to-FQN mappings
-4. Fetches the entity's lineage graph, ownership, tags, tier, glossary terms, and data contract status
-5. **Intersects changed columns with column-level lineage** to show exactly which downstream columns and entities are impacted
-6. Computes a deterministic risk score (0–100) with **PR-level aggregate escalation** when multiple entities compound risk
-7. Posts a rich Markdown risk report with column-level impact, governance details, and owner action recommendations
-8. **Requests reviewers from OpenMetadata owners**, applies risk-based PR labels, and sends webhook notifications
-9. Optionally blocks the PR if the risk exceeds a configurable threshold
+1. **What changed?** — Deterministic SQL/YAML patch analysis detects changed columns
+2. **What breaks?** — Column-level lineage intersection shows exact downstream columns, dashboards, and ML models
+3. **Who must review?** — Approval policies derived from Tier, PII tags, glossary terms, contracts, and ownership
+4. **Which governance policy triggered?** — 5 built-in policies driven by OpenMetadata metadata, all with explicit reasons
+5. **Why is OpenMetadata required?** — Without lineage, ownership, contracts, and classifications, none of this is possible
 
-This puts OpenMetadata's governance intelligence directly in the PR — where merge decisions are made.
+The PR comment structure:
+```
+🔴 CRITICAL · 100/100 · 🚫 Block
+
+### 🚫 Merge Blocked — 2 Approval Policies Require Sign-off
+   Critical tier asset with sensitive data → team:data-platform, team:business-owners
+   Failing contract + downstream dashboards → team:data-quality
+
+### 🔬 What Changed → What Breaks
+   amount → total_revenue in agg_daily_revenue
+   customer_id → customer_id in agg_customer_ltv
+   Affected: Revenue Dashboard, churn_predictor
+
+### 🏛️ Governance Triggers (from OpenMetadata)
+   Tier.Tier1 · PII.Sensitive · Glossary.Revenue · Contract: Failing
+
+### ⚡ Automation (with reasons)
+   team:data-platform — Tier1 + PII policy triggered
+   lineagelock:pii-impact — column tags include PII/GDPR
+
+> ⚠️ Active Quality Issues: amount_positive failing for 3 days
+
+📋 Safe Rollout Guidance: dual-write → migrate → deprecate
+```
+
+LineageLock also posts a **GitHub Check Run** alongside the PR comment, integrating with branch protection rules.
 
 ---
 
 ## How It Integrates OpenMetadata
 
-LineageLock uses 8 OpenMetadata capabilities through the official REST API:
+LineageLock uses **10 OpenMetadata capabilities** through the official REST API:
 
 | # | Capability | API Used | Purpose in LineageLock |
 |---|-----------|----------|----------------------|
 | 1 | **Entity Resolution** | `GET /api/v1/tables/name/{fqn}` | Map changed PR files to OpenMetadata table entities |
 | 2 | **Lineage Graph** | `GET /api/v1/lineage/table/{id}` | Compute blast radius — downstream tables, dashboards, ML models, pipelines |
-| 3 | **Column-Level Lineage** | Lineage edge `columnLineage` field | Track which specific columns flow downstream — intersected with PR patch analysis |
-| 4 | **Ownership** | Entity `owners[]` / `owner` field | Route PR reviewers and identify stakeholders (supports v1.12+ `owners` array and legacy `owner` field) |
-| 5 | **Classifications/Tags** | Entity & column `tags` fields | Detect PII, GDPR, and sensitive data exposure risks (with false-positive filtering for PII.None) |
-| 6 | **Glossary Terms** | Entity tags with `source: Glossary` | Detect changes touching business-critical glossary terms (Revenue, Customer Data) |
-| 7 | **Tier/Criticality** | Entity `tier` tag | Identify changes to business-critical Tier 1/Tier 2 assets |
-| 8 | **Data Contracts** | `GET /api/v1/dataContracts` (OM 1.5+) with fallback to `GET /api/v1/dataQuality/testSuites/search/list` | Dual-track contract validation — uses official API when available, falls back gracefully to test-suite proxy |
+| 3 | **Column-Level Lineage** | Lineage edge `columnLineage` field | Intersect changed columns with downstream column mappings for precise breakage analysis |
+| 4 | **Ownership** | Entity `owners[]` / `owner` field | Route PR reviewers and drive approval policies (supports v1.12+ and legacy) |
+| 5 | **Classifications/Tags** | Entity & column `tags` fields | Detect PII, GDPR, and sensitive data — drives COLUMN_PII_BREAKAGE approval policy |
+| 6 | **Glossary Terms** | Entity tags with `source: Glossary` | Drive GLOSSARY_BUSINESS_CRITICAL policy for Revenue/CustomerData-linked assets |
+| 7 | **Tier/Criticality** | Entity `tier` tag | Drive TIER1_PII approval policy — requires Data Platform + Business Owner sign-off |
+| 8 | **Data Contracts** | `GET /api/v1/dataContracts` (OM 1.5+) → fallback `GET /api/v1/dataQuality/testSuites/search/list` | Dual-track contract validation — drives CONTRACT_FAILURE_DASHBOARD block policy |
+| 9 | **Observability / Test Results** | `GET /api/v1/dataQuality/testCases/search/list` | Surface active quality failures — "this asset is already failing, this PR adds risk" |
+| 10 | **GitHub Check Run** | `POST /checks` (GitHub API) | Post a blocking check alongside the PR comment for branch protection integration |
 
-This is not a superficial integration. LineageLock depends on OpenMetadata as its core data source — without it, there is no blast radius, no governance context, and no risk score.
+**This is not a superficial integration.** Without OpenMetadata, LineageLock has no blast radius, no approval policies, no governance context, and no risk score. Every output is derived from OpenMetadata metadata.
 
 ---
 
 ## Why This Wins
 
-**LineageLock turns OpenMetadata from a passive catalog into active merge-time governance.**
+**LineageLock is the only tool that turns OpenMetadata into a merge-time governance gate.**
 
-Most OpenMetadata integrations are read-only dashboards or search interfaces. LineageLock is the opposite — it's an enforcement layer that plugs directly into the developer workflow where decisions happen: the pull request.
+Most OpenMetadata integrations are read-only dashboards or search interfaces. LineageLock is an enforcement layer that plugs into the developer workflow where merge decisions happen.
 
-- **Every PR that touches data** automatically gets OpenMetadata's lineage, ownership, classification, and contract intelligence
-- **Column-level precision** — not just "this table changed" but "this column changed, and here's every downstream column and dashboard it feeds"
-- **Real workflow automation** — reviewer requests, risk labels, and webhook notifications, all driven by OpenMetadata metadata
-- **Honest about what it knows** — when patch analysis is uncertain, it says so explicitly instead of pretending precision
+- **Approval Policy Engine** — 5 built-in policies driven entirely by OM metadata: Tier+PII, contract+dashboard, glossary business terms, PII column breakage, no-owner block
+- **Column-level precision** — not "this table changed" but "this column changed → here's every downstream column, dashboard, and ML model it feeds"
+- **Active observability** — "this asset already has 2 failing quality tests (3 days old). This PR adds risk on top."
+- **Safe rollout guidance** — for risky changes: "dual-write first, migrate consumers, then deprecate"
+- **GitHub Check Run** — integrates with branch protection, not just a comment
+- **Real automation with reasons** — every reviewer request and label includes an explicit OpenMetadata signal as justification
 
 ---
 
 ## Technical Architecture
 
 ```
-PR Event → File Detection → Patch Parsing → Asset Resolution → OpenMetadata API → Column Intersection → Risk Scoring → PR Aggregate → Comment + Labels + Reviewers + Webhooks
+PR Event → Patch Parsing → Asset Resolution → OpenMetadata API → Observability Enrichment → Column Intersection → Risk Scoring → PR Aggregate → Policy Engine → Comment + Check Run + Labels + Reviewers + Webhooks
 ```
 
 **Stack:** TypeScript, Node.js 20, GitHub Actions
 
 **Components:**
-- **GitHub Action** (`action.yml`) — triggers on PRs, posts comments, requests reviewers, applies labels
+- **GitHub Action** (`action.yml`) — triggers on PRs, posts comments, creates Check Runs, requests reviewers, applies labels
 - **Patch Parser** (`src/diff/patch-parser.ts`) — deterministic SQL/YAML diff analysis for changed column detection
-- **OpenMetadata Client** (`src/openmetadata/client.ts`) — REST API client with entity, lineage, column lineage, glossary, and contract fetching
+- **OpenMetadata Client** (`src/openmetadata/client.ts`) — REST client for 9 OM capabilities: entity, lineage, column lineage, owners, tags, glossary, tier, contracts, observability
 - **Asset Resolver** (`src/resolver/`) — maps file paths to OpenMetadata FQNs via explicit mappings or naming conventions
-- **Risk Scoring Engine** (`src/risk/scoring.ts`) — deterministic 0-100 scorer with 7 configurable factors
-- **PR Aggregate Engine** (`src/risk/pr-aggregate.ts`) — escalates review urgency when multiple entities compound risk
-- **Report Renderer** (`src/report/renderer.ts`) — rich Markdown PR comment with column-level impact, glossary terms, and owner actions
-- **Workflow Automation** (`src/automation/workflow.ts`) — reviewer routing, label automation, Slack/Teams/webhook notifications
-- **CLI** (`src/cli.ts`) — local dry-run and demo mode
-- **Website** (`scripts/website.js`) — interactive analysis dashboard with live OpenMetadata sandbox connection
+- **Risk Scoring Engine** (`src/risk/scoring.ts`) — deterministic 0–100 scorer with 7 configurable factors
+- **PR Aggregate Engine** (`src/risk/pr-aggregate.ts`) — escalates when multiple entities compound risk
+- **Approval Policy Engine** (`src/policy/approval-engine.ts`) — 5 OM-driven policies: TIER1_PII, CONTRACT_FAILURE_DASHBOARD, GLOSSARY_BUSINESS_CRITICAL, COLUMN_PII_BREAKAGE, NO_OWNER
+- **Rollout Guidance** (`src/policy/rollout-guidance.ts`) — safe migration steps for modified/renamed columns with downstream impact
+- **Report Renderer** (`src/report/renderer.ts`) — impact-first PR comment: policies → blast radius → governance → observability → rollout
+- **Workflow Automation** (`src/automation/workflow.ts`) — reviewer routing (users + teams), label automation, Slack/Teams/webhook notifications
+- **CLI** (`src/cli.ts`) — local dry-run and demo mode (`--scenario high-risk / low-risk`)
 
 **Quality:**
 - Full TypeScript with strict mode
-- 8 test suites with **96 test cases** covering patch parsing, scoring, aggregation, automation, and rendering
+- **9 test suites, 112 test cases** covering patch parsing, scoring, aggregation, policy engine, automation, and rendering
 - Type-safe OpenMetadata API response handling
 - False-positive filtering for sensitive tag detection
 

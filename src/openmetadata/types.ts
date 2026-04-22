@@ -67,6 +67,15 @@ export interface DataContractTest {
   description?: string;
 }
 
+/** Individual test case result from OpenMetadata observability */
+export interface TestCaseResult {
+  name: string;
+  status: 'Success' | 'Failed' | 'Aborted' | string;
+  timestamp?: string;
+  failureReason?: string;
+  testSuite?: string;
+}
+
 /** Table entity from OpenMetadata */
 export interface TableEntity {
   id: string;
@@ -150,6 +159,8 @@ export interface ResolvedEntity {
   contract?: DataContract;
   /** Glossary terms linked to this entity */
   glossaryTerms?: string[];
+  /** Active quality issues from OpenMetadata observability */
+  activeQualityIssues?: TestCaseResult[];
   /** Error message if resolution failed */
   error?: string;
 }

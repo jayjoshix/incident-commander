@@ -32,8 +32,9 @@ import {
   formatTeamsMessage,
   sendWebhook,
 } from '../automation/workflow';
+import { evaluatePolicies } from '../policy/approval-engine';
 import { ResolvedEntity } from '../openmetadata/types';
-import { getPRContext, getChangedFiles, postOrUpdateComment } from './github';
+import { getPRContext, getChangedFiles, postOrUpdateComment, createCheckRun } from './github';
 
 async function run(): Promise<void> {
   try {
@@ -102,6 +103,13 @@ async function run(): Promise<void> {
       if (resolution.fqn) {
         core.info(`  → Resolving: ${resolution.filePath} → ${resolution.fqn}`);
         const entity = await client.resolveEntity(resolution.filePath, resolution.fqn);
+        // Observability enrichment: fetch active quality issues (best-effort, non-blocking)
+        if (entity.found && entity.fqn) {
+          entity.activeQualityIssues = await client.getTestResults(entity.fqn);
+          if (entity.activeQualityIssues.length > 0) {
+            core.info(`  ⚠️  ${entity.activeQualityIssues.length} active quality issue(s) found on ${entity.fqn}`);
+          }
+        }
         entities.push(entity);
       } else {
         entities.push({
@@ -123,19 +131,51 @@ async function run(): Promise<void> {
       core.info(`⚡ PR-level escalation: ${aggregate.maxEntityScore} → ${aggregate.aggregateScore} (${aggregate.factors.length} escalation factors)`);
     }
 
-    // 9. Compute automation results (before rendering so we can include them in the comment)
+    // 9. Evaluate approval policies (metadata-driven, from OpenMetadata signals)
+    const policyResult = evaluatePolicies(entities, patchAnalyses, config);
+    if (policyResult.triggeredPolicies.length > 0) {
+      core.info(`🏛️  ${policyResult.triggeredPolicies.length} approval policy(ies) triggered`);
+      policyResult.triggeredPolicies.forEach(p =>
+        core.info(`   ${p.severity === 'block' ? '🚫' : '⚠️'} ${p.name}: ${p.reason.slice(0, 80)}...`)
+      );
+    }
+
+    // 10. Compute automation results (before rendering so we can include them in the comment)
     const automationConfig = config.automation || {};
-    const reviewerResult = determineReviewers(entities, automationConfig);
+    // Merge policy-required reviewers with owner-based reviewers
+    const ownerReviewers = determineReviewers(entities, automationConfig);
+    const reviewerResult = {
+      users: [...new Set([...ownerReviewers.users, ...policyResult.allRequiredUsers])],
+      teams: [...new Set([...ownerReviewers.teams, ...policyResult.allRequiredTeams])],
+    };
     const appliedLabels = determineLabels(report, entities, patchAnalyses, automationConfig);
 
-    // 10. Render and post PR comment (includes automation context)
+    // 11. Render and post PR comment (includes policy, automation, observability context)
     const renderContext = {
       reviewerResult: (reviewerResult.users.length > 0 || reviewerResult.teams.length > 0) ? reviewerResult : undefined,
       appliedLabels: appliedLabels.length > 0 ? appliedLabels : undefined,
+      policyResult: policyResult.triggeredPolicies.length > 0 ? policyResult : undefined,
     };
     const markdown = renderReport(report, entities, patchAnalyses, aggregate, renderContext);
     await postOrUpdateComment(githubToken, prContext, markdown);
     core.info('💬 PR comment posted');
+
+    // 12. Post GitHub Check Run (non-blocking)
+    try {
+      const decision = policyResult.isBlocked || aggregate.escalatedDecision === 'fail' ? 'failure'
+        : aggregate.escalatedDecision === 'warn' ? 'neutral' : 'success';
+      const topTriggers = policyResult.triggeredPolicies.slice(0, 3)
+        .map(p => `- ${p.name}: ${p.signals.slice(0, 2).join(', ')}`).join('\n');
+      await createCheckRun(githubToken, prContext, {
+        conclusion: decision,
+        title: `LineageLock: ${aggregate.escalatedLevel} (${aggregate.aggregateScore}/100)`,
+        summary: renderCompactSummary(report, aggregate),
+        details: topTriggers || undefined,
+      });
+      core.info('✅ GitHub Check Run created');
+    } catch (err: any) {
+      core.warning(`⚠️ Check run failed (non-blocking): ${err.message}`);
+    }
 
     // 11. Execute automation (reviewer requests, labels, notifications)
 
@@ -217,17 +257,27 @@ async function run(): Promise<void> {
       }
     }
 
-    // 11. Set outputs (use aggregate score for final decision)
+    // 13. Set outputs
     const finalScore = aggregate.aggregateScore;
-    const finalDecision = aggregate.escalatedDecision;
+    const finalDecision = policyResult.isBlocked ? 'fail' : aggregate.escalatedDecision;
     core.setOutput('risk_score', finalScore.toString());
     core.setOutput('risk_level', aggregate.escalatedLevel);
     core.setOutput('decision', finalDecision);
     core.setOutput('changed_columns', totalChangedCols.toString());
+    core.setOutput('policies_triggered', policyResult.triggeredPolicies.length.toString());
     core.info(renderCompactSummary(report, aggregate));
 
-    // 12. Exit code based on decision
-    if (finalDecision === 'fail') {
+    // 14. Exit code — policy block takes precedence over score threshold
+    if (policyResult.isBlocked) {
+      const blockingPolicies = policyResult.triggeredPolicies
+        .filter(p => p.severity === 'block')
+        .map(p => p.name)
+        .join(', ');
+      core.setFailed(
+        `🚫 LineageLock: Merge blocked by approval policies: ${blockingPolicies}. ` +
+        `Required approvals pending.`
+      );
+    } else if (finalDecision === 'fail') {
       core.setFailed(
         `🚫 LineageLock: Risk score ${finalScore}/100 exceeds fail threshold (${config.thresholds.fail}). ` +
         `Manual review required before merging.`

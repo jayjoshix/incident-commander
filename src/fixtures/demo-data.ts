@@ -233,6 +233,22 @@ export const DEMO_FACT_ORDERS: ResolvedEntity = {
   downstream: FACT_ORDERS_DOWNSTREAM,
   contract: FACT_ORDERS_CONTRACT,
   glossaryTerms: ['Glossary.Revenue', 'Glossary.CustomerData'],
+  activeQualityIssues: [
+    {
+      name: 'amount_positive',
+      status: 'Failed',
+      timestamp: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
+      failureReason: 'Found 142 rows where amount <= 0 (expected: all positive)',
+      testSuite: 'fact_orders_contract_suite',
+    },
+    {
+      name: 'freshness_check',
+      status: 'Failed',
+      timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(), // 6 hours ago
+      failureReason: 'Table not updated in 8 hours (SLA: 6 hours)',
+      testSuite: 'fact_orders_contract_suite',
+    },
+  ],
 };
 
 /** Demo scenario: changing a staging table with no owner */

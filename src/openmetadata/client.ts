@@ -13,6 +13,7 @@ import {
   DownstreamImpact,
   LineageNode,
   DataContract,
+  TestCaseResult,
   Owner,
   TagLabel,
 } from './types';
@@ -80,6 +81,48 @@ export class OpenMetadataClient {
     } catch (err) {
       if (this.isNotFound(err)) return null;
       throw this.wrapError('getTableLineage', tableId, err);
+    }
+  }
+
+  /**
+   * Fetch recent test case results for a table (observability enrichment).
+   *
+   * Uses /api/v1/dataQuality/testCases/search/list to get the most recent
+   * test results for this entity. Returns only failed/aborted tests so the
+   * caller can surface active quality issues alongside PR risk.
+   *
+   * Returns an empty array (non-throwing) on 404 or any error — observability
+   * enrichment is always best-effort and never fails the main action.
+   */
+  async getTestResults(tableFQN: string, limit = 5): Promise<TestCaseResult[]> {
+    try {
+      const entityLink = `<#E::table::${tableFQN}>`;
+      const response = await this.http.get('/api/v1/dataQuality/testCases/search/list', {
+        params: {
+          entityLink,
+          limit,
+          includeAllTests: true,
+          orderByLastExecutionDate: true,
+        },
+      });
+      const testCases = response.data?.data || [];
+      return testCases
+        .map((tc: any) => {
+          const lastResult = tc.testCaseResult || tc.results?.[0];
+          return {
+            name: tc.name || tc.fullyQualifiedName?.split('.')?.pop() || 'unknown',
+            status: lastResult?.testCaseStatus || 'Aborted',
+            timestamp: lastResult?.timestamp
+              ? new Date(lastResult.timestamp).toISOString()
+              : undefined,
+            failureReason: lastResult?.result || lastResult?.failureReason,
+            testSuite: tc.testSuite?.name,
+          } as TestCaseResult;
+        })
+        .filter((r: TestCaseResult) => r.status === 'Failed' || r.status === 'Aborted');
+    } catch {
+      // Best-effort: never fail the main action due to observability enrichment
+      return [];
     }
   }
 

@@ -17,6 +17,7 @@ import { computePRAggregate } from './risk/pr-aggregate';
 import { renderReport, renderCompactSummary, RenderContext } from './report/renderer';
 import { parsePatch, PatchAnalysis } from './diff/patch-parser';
 import { determineReviewers, determineLabels } from './automation/workflow';
+import { evaluatePolicies } from './policy/approval-engine';
 import { ResolvedEntity } from './openmetadata/types';
 import { DEMO_ENTITIES, DEMO_CHANGED_FILES } from './fixtures/demo-data';
 
@@ -172,11 +173,18 @@ program
 
     // Simulate automation context for demo
     const automationConfig = config.automation || { reviewers: { enabled: true }, labels: { enabled: true } };
-    const reviewerResult = determineReviewers(entities, automationConfig);
+    const ownerReviewers = determineReviewers(entities, automationConfig);
     const appliedLabels = determineLabels(report, entities, demoPatchAnalyses, automationConfig);
+    // Evaluate approval policies (core governance feature)
+    const policyResult = evaluatePolicies(entities, demoPatchAnalyses, config);
+    const reviewerResult = {
+      users: [...new Set([...ownerReviewers.users, ...policyResult.allRequiredUsers])],
+      teams: [...new Set([...ownerReviewers.teams, ...policyResult.allRequiredTeams])],
+    };
     const demoContext: RenderContext = {
       reviewerResult: (reviewerResult.users.length > 0 || reviewerResult.teams.length > 0) ? reviewerResult : undefined,
       appliedLabels: appliedLabels.length > 0 ? appliedLabels : undefined,
+      policyResult: policyResult.triggeredPolicies.length > 0 ? policyResult : undefined,
     };
 
     if (opts.json) {

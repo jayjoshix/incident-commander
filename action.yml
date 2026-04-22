@@ -1,5 +1,5 @@
 name: 'LineageLock'
-description: 'GitHub PR guard for data changes — blast radius, governance risk, and contract compatibility powered by OpenMetadata'
+description: 'OpenMetadata-native merge governance for data PRs — blast radius, approval policies, and contract enforcement at merge time'
 author: 'LineageLock Team'
 
 branding:
@@ -8,7 +8,7 @@ branding:
 
 inputs:
   github-token:
-    description: 'GitHub token for PR API access'
+    description: 'GitHub token for PR API access (needs pull-requests:write, issues:write, checks:write)'
     required: true
     default: ${{ github.token }}
   openmetadata-url:
@@ -36,9 +36,11 @@ outputs:
   risk_level:
     description: 'Overall risk level (LOW, MEDIUM, HIGH, CRITICAL)'
   decision:
-    description: 'Action decision (pass, warn, fail)'
+    description: 'Action decision (pass, warn, fail) — policy blocks take precedence over score thresholds'
   changed_columns:
     description: 'Number of changed columns detected from PR patches'
+  policies_triggered:
+    description: 'Number of approval policies triggered by OpenMetadata metadata'
 
 runs:
   using: 'node20'
