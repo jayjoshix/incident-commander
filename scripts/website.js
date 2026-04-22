@@ -15,6 +15,8 @@ require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const { OpenMetadataClient } = require('../dist/openmetadata/client');
 const { scoreEntities } = require('../dist/risk/scoring');
 const { loadConfig } = require('../dist/config/loader');
+const { evaluatePolicies } = require('../dist/policy/approval-engine');
+const { generateRolloutGuidance } = require('../dist/policy/rollout-guidance');
 
 const OM_URL = process.env.OPENMETADATA_URL || 'https://sandbox.open-metadata.org';
 const OM_TOKEN = process.env.OPENMETADATA_TOKEN;
@@ -53,9 +55,13 @@ app.post('/api/analyze', async (req, res) => {
       entities.push(entity);
     }
     const report = scoreEntities(entities, config);
+    // Dummy patches for website (no actual PR diff available)
+    const dummyPatches = entities.map(e => ({ filePath: e.filePath, changedColumns: [], isStructuralChange: false, changeDescription: '' }));
+    const policyResult = evaluatePolicies(entities, dummyPatches, config);
     const results = report.assessments.map((a, i) => {
       const entity = entities[i];
       const ownerObj = entity.entity?.owner;
+      const rollout = generateRolloutGuidance(dummyPatches[i], entity);
       return {
         file: a.filePath, fqn: a.fqn, found: entity.found !== false,
         score: a.score, level: a.level, factors: a.factors,
@@ -72,9 +78,15 @@ app.post('/api/analyze', async (req, res) => {
           columnImpact: entity.downstream?.columnImpact || [],
         },
         glossaryTerms: entity.glossaryTerms || [],
+        qualityIssues: entity.activeQualityIssues || [],
+        rollout,
       };
     });
-    res.json({ maxScore: report.maxScore, overallLevel: report.overallLevel, decision: report.decision, summary: report.summary, results });
+    const policies = policyResult.triggeredPolicies.map(p => ({
+      name: p.name, severity: p.severity, reason: p.reason,
+      requiredTeams: p.requiredTeams, requiredUsers: p.requiredUsers, signals: p.signals,
+    }));
+    res.json({ maxScore: report.maxScore, overallLevel: report.overallLevel, decision: report.decision, summary: report.summary, results, policies, isBlocked: policyResult.isBlocked, allRequiredTeams: policyResult.allRequiredTeams, allRequiredUsers: policyResult.allRequiredUsers });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -485,6 +497,43 @@ footer a{color:var(--saffron);text-decoration:none}
 }
 .search-input:focus{border-color:var(--saffron)}
 .search-input::placeholder{color:var(--text-4)}
+
+/* ────────── Policy block ────────── */
+.pol-wrap{margin-bottom:20px;border-radius:14px;overflow:hidden;border:1px solid rgba(220,38,38,0.2)}
+.pol-wrap.warn-only{border-color:rgba(202,138,4,0.2)}
+.pol-head{
+  padding:14px 20px;display:flex;align-items:center;gap:10px;
+  font-weight:700;font-size:0.95rem;
+  background:rgba(220,38,38,0.07);color:var(--red);
+}
+.pol-wrap.warn-only .pol-head{background:rgba(202,138,4,0.07);color:var(--yellow)}
+.pol-item{padding:14px 20px;border-top:1px solid rgba(220,38,38,0.1);background:var(--surface)}
+.pol-wrap.warn-only .pol-item{border-color:rgba(202,138,4,0.1)}
+.pol-name{font-weight:600;font-size:0.88rem;margin-bottom:4px}
+.pol-reason{font-size:0.8rem;color:var(--text-3);margin-bottom:6px}
+.pol-pills{display:flex;flex-wrap:wrap;gap:5px}
+.pol-pill{padding:2px 8px;border-radius:4px;font-size:0.68rem;font-weight:600}
+.pol-team{background:rgba(217,119,6,0.1);color:var(--saffron-dark);border:1px solid var(--saffron-border)}
+.pol-sig{background:var(--surface-2);color:var(--text-3);border:1px solid var(--border)}
+
+/* ────────── Quality issues ────────── */
+.qi-wrap{margin-bottom:12px;padding:12px 14px;border-radius:10px;background:rgba(220,38,38,0.04);border:1px solid rgba(220,38,38,0.12)}
+.qi-head{font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--red);margin-bottom:8px}
+.qi-row{display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid rgba(220,38,38,0.08);font-size:0.8rem}
+.qi-row:last-child{border:none}
+.qi-name{font-weight:600;color:var(--text-2);flex:1}
+.qi-age{color:var(--text-4);font-size:0.72rem;white-space:nowrap}
+.qi-reason{font-size:0.75rem;color:var(--text-3);display:block;margin-top:1px}
+
+/* ────────── Rollout guidance ────────── */
+.ro-wrap{margin-bottom:12px}
+.ro-toggle{font-size:0.76rem;font-weight:500;color:var(--saffron-dark);background:var(--saffron-bg);border:1px solid var(--saffron-border);border-radius:6px;padding:5px 12px;cursor:pointer;font-family:var(--font);display:flex;align-items:center;gap:6px;transition:background .12s}
+.ro-toggle:hover{background:rgba(217,119,6,0.12)}
+.ro-body{display:none;margin-top:8px;padding:12px;background:var(--bg-warm);border:1px solid var(--border);border-radius:8px}
+.ro-body.open{display:block}
+.ro-col{font-weight:600;font-size:0.82rem;color:var(--text);margin-bottom:6px}
+.ro-step{display:flex;gap:8px;padding:4px 0;font-size:0.78rem;color:var(--text-3)}
+.ro-step strong{color:var(--text-2)}
 </style>
 </head>
 <body>
@@ -859,7 +908,26 @@ function renderResults(d){
   h+='<div class="rm-row"><span class="rm-k">Decision</span><span class="rm-badge" style="background:'+c+'15;color:'+c+';border:1px solid '+c+'30">'+D[d.decision]+'</span></div>';
   h+='<div class="rm-row"><span class="rm-k">Entities</span><span class="rm-v">'+d.summary.resolvedEntities+' / '+d.summary.totalEntities+' resolved</span></div>';
   h+='<div class="rm-row"><span class="rm-k">Downstream</span><span class="rm-v">'+d.summary.totalDownstream+' entities</span></div>';
+  if(d.policies&&d.policies.length) h+='<div class="rm-row"><span class="rm-k">Policies</span><span class="rm-v" style="color:'+(d.isBlocked?'var(--red)':'var(--yellow)')+'">'+(d.isBlocked?'🚫':'⚠️')+' '+d.policies.length+' triggered</span></div>';
   h+='</div></div>';
+
+  // ── Approval Policies block ──
+  if(d.policies&&d.policies.length){
+    var hasBlock=d.policies.some(function(p){return p.severity==='block'});
+    h+='<div class="pol-wrap'+(hasBlock?'':' warn-only')+'">';
+    h+='<div class="pol-head">'+(hasBlock?'🚫 Merge Blocked — ':'⚠️ ')+d.policies.length+' Approval Polic'+(d.policies.length===1?'y':'ies')+' Triggered</div>';
+    d.policies.forEach(function(p){
+      h+='<div class="pol-item">';
+      h+='<div class="pol-name">'+(p.severity==='block'?'🚫':'⚠️')+' '+p.name+'</div>';
+      h+='<div class="pol-reason">'+p.reason+'</div>';
+      h+='<div class="pol-pills">';
+      p.requiredTeams.forEach(function(t){h+='<span class="pol-pill pol-team">team:'+t+'</span>';});
+      p.requiredUsers.forEach(function(u){h+='<span class="pol-pill pol-team">@'+u+'</span>';});
+      p.signals.slice(0,3).forEach(function(s){h+='<span class="pol-pill pol-sig">'+s+'</span>';});
+      h+='</div></div>';
+    });
+    h+='</div>';
+  }
 
   h+='<div class="stat-row">';
   h+='<div class="stat"><div class="stat-n">'+d.summary.totalDownstream+'</div><div class="stat-l">Downstream</div></div>';
@@ -908,12 +976,37 @@ function renderResults(d){
       h+='</div></div>';
     }
 
+    // ── Active Quality Issues ──
+    if(r.qualityIssues&&r.qualityIssues.length){
+      h+='<div class="qi-wrap">';
+      h+='<div class="qi-head">⚠️ Active Quality Issues from OpenMetadata</div>';
+      r.qualityIssues.forEach(function(q){
+        var age=q.timestamp?formatAge(q.timestamp):'';
+        h+='<div class="qi-row"><div class="qi-name">❌ '+q.name+(q.failureReason?'<span class="qi-reason">'+q.failureReason+'</span>':'')+'</div><span class="qi-age">'+age+'</span></div>';
+      });
+      h+='</div>';
+    }
+
+    // ── Rollout Guidance ──
+    if(r.rollout&&r.rollout.length){
+      var rid='ro-'+Math.random().toString(36).slice(2);
+      h+='<div class="ro-wrap">';
+      h+='<button class="ro-toggle" onclick="var b=document.getElementById(\"'+rid+'\");b.classList.toggle(\"open\");"><span>📋</span> Safe Rollout Guidance ('+r.rollout.length+' column'+(r.rollout.length>1?'s':'')+')</button>';
+      h+='<div class="ro-body" id="'+rid+'">';
+      r.rollout.forEach(function(g){
+        h+='<div class="ro-col">'+g.columnName+' <span style="font-weight:400;color:var(--text-4);font-size:0.75rem">('+g.changeType+')</span></div>';
+        g.steps.forEach(function(s){h+='<div class="ro-step"><span>'+s.step+'.</span><strong>'+s.action+'</strong> — '+s.detail+'</div>';});
+        h+='<div style="height:8px"></div>';
+      });
+      h+='</div></div>';
+    }
+
     h+='<button class="fac-toggle" onclick="toggleFactors(this)"><span>\\u25B6</span> Risk Factors ('+tr+'/'+r.factors.length+' triggered)</button>';
     h+='<div class="fac-body">';
     r.factors.forEach(function(f){
       var pct=f.maxPoints>0?(f.points/f.maxPoints*100):0;
       h+='<div class="fac-row"><div class="fac-n">'+f.name+'</div>';
-      h+='<div class="fac-bar"><div class="fac-fill" style="width:'+pct+'%;background:'+(f.triggered?rc:'var(--black-4)')+'"></div></div>';
+      h+='<div class="fac-bar"><div class="fac-fill" style="width:'+pct+'%;background:'+(f.triggered?rc:'var(--border)')+'"></div></div>';
       h+='<div class="fac-pts">'+f.points+'/'+f.maxPoints+'</div>';
       h+='<div class="fac-st">'+(f.triggered?'\\u{1F534}':'\\u2705')+'</div></div>';
     });
@@ -923,6 +1016,12 @@ function renderResults(d){
   el.innerHTML=h;
   el.style.display='block';
   el.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function formatAge(ts){
+  var ms=Date.now()-new Date(ts).getTime();
+  var h=Math.floor(ms/3600000);
+  return h<24?h+'h ago':Math.floor(h/24)+'d ago';
 }
 
 loadTables();
