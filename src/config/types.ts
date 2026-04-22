@@ -61,6 +61,8 @@ export interface RiskWeights {
   downstreamMlModels: number;
   highDownstreamCount: number;
   noOwner: number;
+  /** Penalty when asset already has active quality issues from OM observability */
+  activeQualityIssues: number;
 }
 
 /** Root configuration file shape (.lineagelock.json) */
@@ -133,6 +135,7 @@ export const DEFAULT_CONFIG: LineageLockConfig = {
     downstreamMlModels: 10,
     highDownstreamCount: 10,
     noOwner: 10,
+    activeQualityIssues: 15,
   },
   failOnUnresolved: false,
 };

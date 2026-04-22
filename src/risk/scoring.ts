@@ -76,6 +76,13 @@ export function scoreEntity(
   const ownerFactor = evaluateOwnership(entity, w.noOwner);
   factors.push(ownerFactor);
 
+  // Factor 8: Active quality issues (observability escalation)
+  const qualityFactor = evaluateActiveQualityIssues(
+    entity,
+    w.activeQualityIssues ?? 15
+  );
+  factors.push(qualityFactor);
+
   // Sum and cap
   const rawScore = factors.reduce((sum, f) => sum + f.points, 0);
   const score = Math.min(rawScore, 100);
@@ -346,6 +353,31 @@ function evaluateOwnership(
     maxPoints,
     triggered: false,
     detail: `Owner: ${owner.displayName || owner.name} (${owner.type})`,
+  };
+}
+
+function evaluateActiveQualityIssues(
+  entity: ResolvedEntity,
+  maxPoints: number
+): RiskFactor {
+  const issues = entity.activeQualityIssues || [];
+  const count = issues.length;
+  if (count > 0) {
+    const names = issues.slice(0, 3).map(i => i.name).join(', ');
+    return {
+      name: 'Active Quality Issues',
+      points: maxPoints,
+      maxPoints,
+      triggered: true,
+      detail: `${count} active failing test(s): ${names}${count > 3 ? ` (+${count - 3} more)` : ''}`,
+    };
+  }
+  return {
+    name: 'Active Quality Issues',
+    points: 0,
+    maxPoints,
+    triggered: false,
+    detail: 'No active quality issues detected',
   };
 }
 

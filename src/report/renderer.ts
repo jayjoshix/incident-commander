@@ -13,6 +13,10 @@ import { PRAggregateRisk } from '../risk/pr-aggregate';
 import { ReviewerResult } from '../automation/workflow';
 import { PolicyEvaluationResult } from '../policy/types';
 import { generateRolloutGuidance } from '../policy/rollout-guidance';
+import { TrustSignal, renderTrustSignal } from '../trust/trust-signal';
+import { RemediationPlan, renderRemediations } from '../remediation/remediation';
+import { AuditTrail, renderAuditSummary } from '../audit/audit-trail';
+import { RoutingResult, renderRoutingReasons } from '../routing/routing';
 
 /** Emoji mapping for risk levels */
 const LEVEL_EMOJI: Record<RiskLevel, string> = {
@@ -45,6 +49,14 @@ export interface RenderContext {
   appliedLabels?: string[];
   /** Approval policy evaluation result */
   policyResult?: PolicyEvaluationResult;
+  /** Trust signal */
+  trustSignal?: TrustSignal;
+  /** Remediation plan */
+  remediationPlan?: RemediationPlan;
+  /** Audit trail */
+  auditTrail?: AuditTrail;
+  /** Routing reasons */
+  routingResult?: RoutingResult;
 }
 
 /**
@@ -97,6 +109,11 @@ export function renderReport(
   // ── 4. Automation — reviewers + labels with reasons ────────────────
   if (context && (context.reviewerResult || context.appliedLabels)) {
     lines.push(renderAutomation(context, entities));
+    // Routing reasons (inline under automation)
+    if (context.routingResult && context.routingResult.routingReasons.length > 0) {
+      lines.push('');
+      lines.push(renderRoutingReasons(context.routingResult));
+    }
     lines.push('');
   }
 
@@ -124,6 +141,24 @@ export function renderReport(
   const unresolved = entities.filter((e) => !e.found);
   if (unresolved.length > 0) {
     lines.push(renderUnresolvedEntities(unresolved));
+    lines.push('');
+  }
+
+  // ── 9. Trust Signal ───────────────────────────────────────────────
+  if (context?.trustSignal) {
+    lines.push(renderTrustSignal(context.trustSignal));
+    lines.push('');
+  }
+
+  // ── 10. Proposed Safe Fixes (Remediation) ─────────────────────────
+  if (context?.remediationPlan && context.remediationPlan.totalItems > 0) {
+    lines.push(renderRemediations(context.remediationPlan));
+    lines.push('');
+  }
+
+  // ── 11. Audit Trail ───────────────────────────────────────────────
+  if (context?.auditTrail) {
+    lines.push(renderAuditSummary(context.auditTrail));
     lines.push('');
   }
 

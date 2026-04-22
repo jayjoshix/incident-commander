@@ -50,6 +50,8 @@ const FACT_ORDERS_TABLE: TableEntity = {
   tags: [
     { tagFQN: 'Tier.Tier1', source: 'Classification', labelType: 'Manual', state: 'Confirmed' },
     { tagFQN: 'Domain.Revenue', source: 'Classification', labelType: 'Manual', state: 'Confirmed' },
+    { tagFQN: 'PII.Sensitive', source: 'Classification', labelType: 'Manual', state: 'Confirmed' },
+    { tagFQN: 'DataSensitivity.Confidential', source: 'Classification', labelType: 'Manual', state: 'Confirmed' },
   ],
   tier: 'Tier.Tier1',
   service: { id: 'svc-001', type: 'databaseService', name: 'warehouse', fullyQualifiedName: 'warehouse' },

@@ -87,9 +87,9 @@ describe('scoreEntity', () => {
     expect(result.factors.find(f => f.name === 'No Clear Owner')?.triggered).toBe(true);
   });
 
-  it('should produce exactly 7 risk factors', () => {
+  it('should produce exactly 8 risk factors', () => {
     const result = scoreEntity(DEMO_FACT_ORDERS, DEFAULT_CONFIG);
-    expect(result.factors).toHaveLength(7);
+    expect(result.factors).toHaveLength(8);
   });
 
   it('should cap score at 100', () => {

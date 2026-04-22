@@ -17,6 +17,8 @@
 
 import * as core from '@actions/core';
 import * as github from '@actions/github';
+import * as fs from 'fs';
+import * as path from 'path';
 import { loadConfig } from '../config/loader';
 import { OpenMetadataClient } from '../openmetadata/client';
 import { resolveFiles, filterDataModelFiles } from '../resolver/asset-resolver';
@@ -35,6 +37,10 @@ import {
 import { evaluatePolicies } from '../policy/approval-engine';
 import { ResolvedEntity } from '../openmetadata/types';
 import { getPRContext, getChangedFiles, postOrUpdateComment, createCheckRun } from './github';
+import { buildAuditTrail } from '../audit/audit-trail';
+import { generateRemediations } from '../remediation/remediation';
+import { computeTrustSignal } from '../trust/trust-signal';
+import { routeByRiskType } from '../routing/routing';
 
 async function run(): Promise<void> {
   try {
@@ -150,11 +156,58 @@ async function run(): Promise<void> {
     };
     const appliedLabels = determineLabels(report, entities, patchAnalyses, automationConfig);
 
-    // 11. Render and post PR comment (includes policy, automation, observability context)
+    // 9a. Trust signal
+    const trustSignal = computeTrustSignal(entities, report, policyResult);
+    core.info(`🏛️  Trust Signal: Grade ${trustSignal.overallGrade} (${trustSignal.overallScore}/100) — ${trustSignal.summary}`);
+
+    // 9b. Routing by risk type
+    const routingResult = routeByRiskType(entities, report, policyResult);
+    // Merge routing teams/users with reviewer result
+    routingResult.users.forEach(u => { if (!reviewerResult.users.includes(u)) reviewerResult.users.push(u); });
+    routingResult.teams.forEach(t => { if (!reviewerResult.teams.includes(t)) reviewerResult.teams.push(t); });
+
+    // 9c. Remediation plan
+    const remediationPlan = generateRemediations(entities, patchAnalyses, report, policyResult);
+    if (remediationPlan.totalItems > 0) {
+      core.info(`🔧 ${remediationPlan.totalItems} remediation action(s) generated (${remediationPlan.criticalCount} critical)`);
+    }
+
+    // 9d. Audit trail
+    const auditTrail = buildAuditTrail({
+      entities, report, aggregate, policyResult, patchAnalyses,
+      reviewerResult, appliedLabels,
+      prContext: {
+        owner: prContext.owner, repo: prContext.repo,
+        pullNumber: prContext.pullNumber,
+      },
+    });
+
+    // 9e. Write artifacts (CI)
+    try {
+      const artifactsDir = path.join(process.cwd(), 'artifacts');
+      if (!fs.existsSync(artifactsDir)) fs.mkdirSync(artifactsDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(artifactsDir, 'lineagelock-audit.json'),
+        JSON.stringify(auditTrail, null, 2)
+      );
+      fs.writeFileSync(
+        path.join(artifactsDir, 'lineagelock-remediation.json'),
+        JSON.stringify(remediationPlan, null, 2)
+      );
+      core.info('📁 Artifacts written: artifacts/lineagelock-audit.json, artifacts/lineagelock-remediation.json');
+    } catch (err: any) {
+      core.warning(`⚠️ Artifact write failed (non-blocking): ${err.message}`);
+    }
+
+    // 10. Render and post PR comment (includes all new sections)
     const renderContext = {
       reviewerResult: (reviewerResult.users.length > 0 || reviewerResult.teams.length > 0) ? reviewerResult : undefined,
       appliedLabels: appliedLabels.length > 0 ? appliedLabels : undefined,
       policyResult: policyResult.triggeredPolicies.length > 0 ? policyResult : undefined,
+      trustSignal,
+      remediationPlan: remediationPlan.totalItems > 0 ? remediationPlan : undefined,
+      auditTrail,
+      routingResult: routingResult.routingReasons.length > 0 ? routingResult : undefined,
     };
     const markdown = renderReport(report, entities, patchAnalyses, aggregate, renderContext);
     await postOrUpdateComment(githubToken, prContext, markdown);

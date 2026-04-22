@@ -20,6 +20,10 @@ import { determineReviewers, determineLabels } from './automation/workflow';
 import { evaluatePolicies } from './policy/approval-engine';
 import { ResolvedEntity } from './openmetadata/types';
 import { DEMO_ENTITIES, DEMO_CHANGED_FILES } from './fixtures/demo-data';
+import { buildAuditTrail } from './audit/audit-trail';
+import { generateRemediations } from './remediation/remediation';
+import { computeTrustSignal } from './trust/trust-signal';
+import { routeByRiskType } from './routing/routing';
 
 const program = new Command();
 
@@ -181,14 +185,31 @@ program
       users: [...new Set([...ownerReviewers.users, ...policyResult.allRequiredUsers])],
       teams: [...new Set([...ownerReviewers.teams, ...policyResult.allRequiredTeams])],
     };
+
+    // New: trust signal, routing, remediation, audit
+    const trustSignal = computeTrustSignal(entities, report, policyResult);
+    const routingResult = routeByRiskType(entities, report, policyResult);
+    routingResult.users.forEach(u => { if (!reviewerResult.users.includes(u)) reviewerResult.users.push(u); });
+    routingResult.teams.forEach(t => { if (!reviewerResult.teams.includes(t)) reviewerResult.teams.push(t); });
+    const remediationPlan = generateRemediations(entities, demoPatchAnalyses, report, policyResult);
+    const auditTrail = buildAuditTrail({
+      entities, report, aggregate, policyResult,
+      patchAnalyses: demoPatchAnalyses,
+      reviewerResult, appliedLabels,
+    });
+
     const demoContext: RenderContext = {
       reviewerResult: (reviewerResult.users.length > 0 || reviewerResult.teams.length > 0) ? reviewerResult : undefined,
       appliedLabels: appliedLabels.length > 0 ? appliedLabels : undefined,
       policyResult: policyResult.triggeredPolicies.length > 0 ? policyResult : undefined,
+      trustSignal,
+      remediationPlan: remediationPlan.totalItems > 0 ? remediationPlan : undefined,
+      auditTrail,
+      routingResult: routingResult.routingReasons.length > 0 ? routingResult : undefined,
     };
 
     if (opts.json) {
-      console.log(JSON.stringify({ report, aggregate, automation: { reviewerResult, appliedLabels } }, null, 2));
+      console.log(JSON.stringify({ report, aggregate, automation: { reviewerResult, appliedLabels }, trustSignal, remediationPlan, auditTrail }, null, 2));
     } else {
       console.log('═'.repeat(60));
       console.log('');
