@@ -4,7 +4,7 @@
 
 [![OpenMetadata Integration](https://img.shields.io/badge/OpenMetadata-Integrated-blue?style=flat-square)](https://open-metadata.org)
 [![GitHub Action](https://img.shields.io/badge/GitHub_Action-Ready-green?style=flat-square)](https://github.com/features/actions)
-[![Tests](https://img.shields.io/badge/Tests-96_passing-brightgreen?style=flat-square)](#testing)
+[![Tests](https://img.shields.io/badge/Tests-135_passing-brightgreen?style=flat-square)](#testing)
 [![License](https://img.shields.io/badge/License-Apache_2.0-orange?style=flat-square)](LICENSE)
 
 ---
@@ -17,40 +17,54 @@ Data teams routinely change dbt models, SQL files, and schema definitions withou
 
 ## What It Does
 
-When a PR changes a dbt model, SQL file, or schema YAML, LineageLock:
+When a PR changes a dbt model, SQL file, or schema YAML, LineageLock answers 5 questions — all sourced directly from OpenMetadata:
 
-1. **Detects** changed data model files in the PR
-2. **Parses patches** to detect changed columns via deterministic SQL/YAML diff analysis
-3. **Resolves** file paths to OpenMetadata entities via configurable naming conventions
-4. **Fetches** lineage, column lineage, ownership, tags, glossary terms, tier, and data contracts from OpenMetadata
-5. **Intersects** changed columns with column-level lineage — "this column flows into *this downstream column* in *this dashboard*"
-6. **Computes** a deterministic risk score (0–100) with PR-level aggregate escalation
-7. **Posts** a PR comment leading with column-aware impact, OpenMetadata governance signals, and automation reasons
-8. **Automates** reviewer requests (users + teams), risk labels, and Slack/Teams/webhook notifications
-9. **Blocks or warns** based on configurable thresholds
+1. **What changed?** — Deterministic SQL/YAML patch analysis detects changed columns
+2. **What breaks?** — Column-level lineage intersection shows exact downstream columns, dashboards, and ML models
+3. **Who must review?** — Approval policies derived from Tier, PII tags, glossary terms, contracts, and ownership
+4. **Which governance policy triggered?** — 5 built-in policies driven by OpenMetadata metadata
+5. **Why is OpenMetadata required?** — Without lineage, ownership, contracts, and classifications, none of this is possible
 
 The PR comment structure:
 ```
 🔴 CRITICAL · 100/100 · 🚫 Block
 
-### 🔬 What Changed → What Breaks   ← HEADLINE
+### 🚫 Merge Blocked — 2 Approval Policies Require Sign-off
+   🚫 Critical tier asset with sensitive data
+   Asset is Tier.Tier1 and contains sensitive data columns.
+   Required: team:data-platform, team:business-owners
+   Signals: Tier.Tier1 · PII.Sensitive · GDPR.Subject
+
+   🚫 Failing contract with downstream dashboards
+   Required: team:data-quality
+   Signals: 1 failing test · Dashboard: Revenue Dashboard
+
+### 🔬 What Changed → What Breaks
    amount → total_revenue in agg_daily_revenue
    customer_id → customer_id in agg_customer_ltv
-   Affected: Revenue Dashboard, churn_predictor
+   Affected: 📊 Revenue Dashboard, 🤖 churn_predictor
 
-### 🏛️ Governance Triggers          ← OpenMetadata signals
-   Tier.Tier1 · PII.Sensitive · Glossary.Revenue
-   Contract: Failing · Owner: Data Engineering Team
+### 🏛️ Governance Triggers (from OpenMetadata)
+   Tier.Tier1 · PII.Sensitive · Glossary.Revenue · Contract: Failing
+   Owner: Data Engineering Team
 
-### ⚡ Automation                    ← with reasons
-   team:data-engineering — owned by Data Engineering Team in OM
-   lineagelock:pii-impact — column tags include PII/GDPR
+### ⚡ Automation
+   Reviewers: team:data-platform, team:business-owners, team:data-quality
+   Labels: tier1-change, pii-impact, contract-risk, column-breakage
+
+> ⚠️ Active Quality Issues (from OpenMetadata)
+> ❌ amount_positive — 142 rows where amount <= 0 (3d ago)
+> ❌ freshness_check — Table not updated in 8h (6h ago)
+
+📋 Safe Rollout Guidance (collapsible)
+   amount (modified): Validate → Test in staging → Update contract
+   customer_id (modified): Validate → Test in staging → Update contract
 
 <details> 📊 Detailed Scoring </details>
 ```
 
 ```
-PR opened → Patch parsed → Files resolved → OpenMetadata lookup → Column intersection → Risk scored → PR aggregate → Comment + Labels + Reviewers + Webhooks
+PR opened → Patch parsed → Files resolved → OpenMetadata API → Observability enrichment → Column intersection → Risk scored → PR aggregate → Policy engine → Comment + Check Run + Labels + Reviewers + Webhooks
 ```
 
 ## Live Sandbox Verification ✅
