@@ -13,7 +13,15 @@ import { OpenMetadataClient } from '../src/openmetadata/client';
 import { loadConfig } from '../src/config/loader';
 import { resolveFileToFQN } from '../src/resolver/asset-resolver';
 import { scoreEntity, scoreEntities } from '../src/risk/scoring';
-import { renderReport, renderCompactSummary } from '../src/report/renderer';
+import { computePRAggregate } from '../src/risk/pr-aggregate';
+import { renderReport, renderCompactSummary, RenderContext } from '../src/report/renderer';
+import { evaluatePolicies } from '../src/policy/approval-engine';
+import { determineReviewers, determineLabels } from '../src/automation/workflow';
+import { computeTrustSignal } from '../src/trust/trust-signal';
+import { generateRemediations } from '../src/remediation/remediation';
+import { buildAuditTrail } from '../src/audit/audit-trail';
+import { routeByRiskType } from '../src/routing/routing';
+import { parsePatch } from '../src/diff/patch-parser';
 import { ResolvedEntity } from '../src/openmetadata/types';
 
 const OM_URL = process.env.OPENMETADATA_URL || 'http://localhost:8585';
@@ -119,14 +127,9 @@ async function main(): Promise<void> {
       : entity.error || 'Unknown error');
 
     if (entity.found) {
-      // Score it
       const assessment = scoreEntity(entity, config);
       test('Risk scoring', assessment.score >= 0, `Score: ${assessment.score}/100 (${assessment.level})`);
-
-      const triggeredCount = assessment.factors.filter(f => f.triggered).length;
-      test('Risk factors', assessment.factors.length === 7, `${triggeredCount}/${assessment.factors.length} factors triggered`);
-
-      // Log each factor
+      test('Risk factors', assessment.factors.length === 8, `${assessment.factors.length} factors (expected 8)`);
       for (const f of assessment.factors) {
         console.log(`     ${f.triggered ? '🔴' : '✅'} ${f.name}: ${f.points}/${f.maxPoints} — ${f.detail}`);
       }
@@ -135,8 +138,8 @@ async function main(): Promise<void> {
     test('Full resolve', false, err.message);
   }
 
-  // ─── Test 7: Multi-entity report ─────────────────────────────────────
-  console.log('\n7️⃣  Multi-Entity Report');
+  // ─── Test 7: Multi-entity report + new modules ───────────────────────
+  console.log('\n7️⃣  Multi-Entity Report + Governance Modules');
   try {
     const filesToCheck = [
       { file: 'models/marts/fact_orders.sql', fqn: 'warehouse.analytics.public.fact_orders' },
@@ -149,21 +152,73 @@ async function main(): Promise<void> {
       entities.push(entity);
     }
 
+    const patches = entities.map(e => parsePatch(e.filePath, undefined));
     const report = scoreEntities(entities, config);
+    const aggregate = computePRAggregate(report, entities, patches, config);
+    const policyResult = evaluatePolicies(entities, patches, config);
+    const reviewerResult = {
+      users: [...new Set([...determineReviewers(entities, config).users, ...policyResult.allRequiredUsers])],
+      teams: [...new Set([...determineReviewers(entities, config).teams, ...policyResult.allRequiredTeams])],
+    };
+    const appliedLabels = determineLabels(report, entities, config);
+
+    // New modules
+    const trustSignal = computeTrustSignal(entities, report, policyResult);
+    const routingResult = routeByRiskType(entities, report, policyResult);
+    const remediationPlan = generateRemediations(entities, patches, report, policyResult);
+    const auditTrail = buildAuditTrail({
+      entities, report, aggregate, policyResult, patchAnalyses: patches,
+      reviewerResult, appliedLabels,
+    });
+
     test('Aggregate report', report.assessments.length === 2, `${report.assessments.length} assessments`);
     test('Max score computed', report.maxScore >= 0, `Max: ${report.maxScore}/100 (${report.overallLevel})`);
     test('Decision computed', ['pass', 'warn', 'fail'].includes(report.decision), `Decision: ${report.decision}`);
+    test('Trust signal computed', !!trustSignal.overallGrade, `Grade: ${trustSignal.overallGrade} (${trustSignal.overallScore}/100)`);
+    test('Trust dimensions', trustSignal.dimensions.length === 5, `${trustSignal.dimensions.length} dimensions`);
+    test('Routing computed', Array.isArray(routingResult.routingReasons), `${routingResult.routingReasons.length} routing reason(s)`);
+    test('Remediation computed', remediationPlan.totalItems >= 0, `${remediationPlan.totalItems} remediation item(s)`);
+    test('Audit trail built', !!auditTrail.timestamp, `Decision: ${auditTrail.decision}, Score: ${auditTrail.aggregateScore}`);
+    test('Audit entities', auditTrail.entities.length === 2, `${auditTrail.entities.length} entity records`);
 
-    // Render the full report
-    const markdown = renderReport(report, entities);
-    test('Markdown rendered', markdown.includes('LineageLock Risk Report'), `${markdown.length} chars`);
+    const ctx: RenderContext = {
+      reviewerResult: reviewerResult.users.length > 0 || reviewerResult.teams.length > 0 ? reviewerResult : undefined,
+      appliedLabels: appliedLabels.length > 0 ? appliedLabels : undefined,
+      policyResult: policyResult.triggeredPolicies.length > 0 ? policyResult : undefined,
+      trustSignal,
+      remediationPlan: remediationPlan.totalItems > 0 ? remediationPlan : undefined,
+      auditTrail,
+      routingResult: routingResult.routingReasons.length > 0 ? routingResult : undefined,
+    };
+
+    const markdown = renderReport(report, entities, patches, aggregate, ctx);
+    test('Full markdown rendered', markdown.includes('LineageLock Risk Report'), `${markdown.length} chars`);
 
     console.log('\n' + '═'.repeat(60));
     console.log('📝 LIVE REPORT (from real OpenMetadata data):');
     console.log('═'.repeat(60));
     console.log(markdown);
     console.log('═'.repeat(60));
-    console.log(renderCompactSummary(report));
+    console.log(renderCompactSummary(report, aggregate));
+
+    // Print trust signal summary
+    console.log(`\n🏛️  Trust Signal: Grade ${trustSignal.overallGrade} (${trustSignal.overallScore}/100)`);
+    for (const d of trustSignal.dimensions) {
+      console.log(`     ${d.grade} ${d.name}: ${d.score}/100 — ${d.detail}`);
+    }
+
+    // Print remediation summary
+    if (remediationPlan.totalItems > 0) {
+      console.log(`\n🔧 Remediation Plan: ${remediationPlan.totalItems} item(s) (${remediationPlan.criticalCount} critical)`);
+      for (const item of remediationPlan.items) {
+        const icon = item.priority === 'critical' ? '🔴' : item.priority === 'high' ? '🟠' : item.priority === 'medium' ? '🟡' : '🟢';
+        console.log(`   ${icon} ${item.id}: ${item.title}`);
+      }
+    }
+
+    // Print audit summary
+    console.log(`\n📋 Audit Trail: ${auditTrail.decision.toUpperCase()} | Score: ${auditTrail.aggregateScore}/100 | Policies: ${auditTrail.policies.length}`);
+
   } catch (err: any) {
     test('Multi-entity report', false, err.message);
   }
