@@ -64,13 +64,14 @@ describe('scoreEntity', () => {
   it('should score the high-risk fact_orders entity highly', () => {
     const result = scoreEntity(DEMO_FACT_ORDERS, DEFAULT_CONFIG);
     // Expected triggered factors:
-    // - Contract violation: 40 (1 failing test)
+    // - Contract violation: 40 (2 failing tests: amount_positive + freshness_check)
     // - Critical tier (Tier1): 20
-    // - Sensitive tags (PII, GDPR): 20
+    // - Sensitive tags (PII, GDPR, Confidential): 20
     // - Downstream dashboards: 10
     // - Downstream ML models: 10
     // - High downstream count (7 >= 5): 10
-    // Total raw: 110, capped at 100
+    // - Active quality issues: 15
+    // Total raw: 125, capped at 100
     expect(result.score).toBe(100);
     expect(result.level).toBe('CRITICAL');
     expect(result.entityFound).toBe(true);

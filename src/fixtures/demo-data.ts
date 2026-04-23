@@ -207,13 +207,13 @@ const STG_PAYMENTS_DOWNSTREAM: DownstreamImpact = {
 const FACT_ORDERS_CONTRACT: DataContract = {
   hasContract: true,
   testSuiteName: 'fact_orders_contract_suite',
-  failingTests: 1,
+  failingTests: 2,
   totalTests: 4,
   tests: [
     { name: 'column_count_check', status: 'Success', description: 'Ensures column count matches expected schema' },
     { name: 'not_null_order_id', status: 'Success', description: 'order_id must not be null' },
     { name: 'amount_positive', status: 'Failed', description: 'All order amounts must be positive' },
-    { name: 'freshness_check', status: 'Success', description: 'Data must be less than 24h old' },
+    { name: 'freshness_check', status: 'Failed', description: 'Data must be less than 24h old' },
   ],
 };
 

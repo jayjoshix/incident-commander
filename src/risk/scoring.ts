@@ -384,19 +384,25 @@ function evaluateActiveQualityIssues(
 // ─── Helpers ───────────────────────────────────────────────────────────────
 
 /**
- * Collect all tags from entity-level and column-level.
+ * Collect all tags from entity-level and column-level, deduplicated by tagFQN.
  */
 function collectAllTags(entity: ResolvedEntity): TagLabel[] {
-  const tags: TagLabel[] = [];
+  const seen = new Map<string, TagLabel>();
   if (entity.entity?.tags) {
-    tags.push(...entity.entity.tags);
+    for (const tag of entity.entity.tags) {
+      seen.set(tag.tagFQN, tag);
+    }
   }
   if (entity.entity?.columns) {
     for (const col of entity.entity.columns) {
       if (col.tags) {
-        tags.push(...col.tags);
+        for (const tag of col.tags) {
+          if (!seen.has(tag.tagFQN)) {
+            seen.set(tag.tagFQN, tag);
+          }
+        }
       }
     }
   }
-  return tags;
+  return Array.from(seen.values());
 }
