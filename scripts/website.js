@@ -22,6 +22,8 @@ const { computeTrustSignal } = require('../dist/trust/trust-signal');
 const { generateRemediations } = require('../dist/remediation/remediation');
 const { buildAuditTrail } = require('../dist/audit/audit-trail');
 const { routeByRiskType } = require('../dist/routing/routing');
+const { DEMO_ENTITIES } = require('../dist/fixtures/demo-data');
+const { parsePatch } = require('../dist/diff/patch-parser');
 
 const OM_URL = process.env.OPENMETADATA_URL || 'https://sandbox.open-metadata.org';
 const OM_TOKEN = process.env.OPENMETADATA_TOKEN;
@@ -29,6 +31,61 @@ const PORT = process.env.PORT || 3000;
 
 const app = express();
 app.use(express.json());
+
+// ─── Shared governance pipeline ─────────────────────────────────────────────
+
+function runGovernancePipeline(entities, config) {
+  const patches = entities.map(e => ({ filePath: e.filePath, changedColumns: [], isStructuralChange: false, changeDescription: '' }));
+  const report = scoreEntities(entities, config);
+  const aggregate = computePRAggregate(report, entities, patches, config);
+  const policyResult = evaluatePolicies(entities, patches, config);
+  const trustSignal = computeTrustSignal(entities, report, policyResult);
+  const routingResult = routeByRiskType(entities, report, policyResult);
+  const remediationPlan = generateRemediations(entities, patches, report, policyResult);
+  const auditTrail = buildAuditTrail({
+    entities, report, aggregate, policyResult, patchAnalyses: patches,
+    reviewerResult: { users: [...policyResult.allRequiredUsers, ...routingResult.users], teams: [...policyResult.allRequiredTeams, ...routingResult.teams] },
+    appliedLabels: [],
+  });
+  const results = report.assessments.map((a, i) => {
+    const entity = entities[i];
+    const ownerObj = entity.entity && entity.entity.owner;
+    const rollout = generateRolloutGuidance(patches[i], entity);
+    return {
+      file: a.filePath, fqn: a.fqn, found: entity.found !== false,
+      score: a.score, level: a.level, factors: a.factors,
+      owner: ownerObj ? (ownerObj.displayName || ownerObj.name) : null,
+      ownerType: ownerObj ? ownerObj.type : null,
+      tier: entity.entity ? entity.entity.tier : null,
+      tags: ((entity.entity && entity.entity.tags) || []).map(t => t.tagFQN),
+      columns: (entity.entity && entity.entity.columns) ? entity.entity.columns.length : 0,
+      downstream: {
+        total: (entity.downstream && entity.downstream.total) || 0,
+        tables: (entity.downstream && entity.downstream.tables) ? entity.downstream.tables.length : 0,
+        dashboards: (entity.downstream && entity.downstream.dashboards) ? entity.downstream.dashboards.length : 0,
+        mlModels: (entity.downstream && entity.downstream.mlModels) ? entity.downstream.mlModels.length : 0,
+        columnImpact: (entity.downstream && entity.downstream.columnImpact) || [],
+      },
+      glossaryTerms: entity.glossaryTerms || [],
+      qualityIssues: entity.activeQualityIssues || [],
+      rollout,
+    };
+  });
+  const policies = policyResult.triggeredPolicies.map(p => ({
+    name: p.name, severity: p.severity, reason: p.reason,
+    requiredTeams: p.requiredTeams, requiredUsers: p.requiredUsers, signals: p.signals,
+  }));
+  return {
+    maxScore: report.maxScore, overallLevel: report.overallLevel,
+    decision: report.decision, summary: report.summary,
+    results, policies,
+    isBlocked: policyResult.isBlocked,
+    allRequiredTeams: policyResult.allRequiredTeams,
+    allRequiredUsers: policyResult.allRequiredUsers,
+    trustSignal, remediationPlan, auditTrail, routingResult,
+    isDemo: false,
+  };
+}
 
 // ═══════════════════════════ API ═══════════════════════════
 
@@ -46,6 +103,19 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// ─── Demo mode endpoint (uses fixture data, no OM needed) ─────────────────
+
+app.get('/api/demo', async (req, res) => {
+  try {
+    const config = loadConfig(path.join(__dirname, '..', '.lineagelock.json'));
+    const result = runGovernancePipeline(DEMO_ENTITIES, config);
+    result.isDemo = true;
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.post('/api/analyze', async (req, res) => {
   try {
     const { files } = req.body;
@@ -59,63 +129,8 @@ app.post('/api/analyze', async (req, res) => {
       const entity = await client.resolveEntity(file, fqn);
       entities.push(entity);
     }
-    const report = scoreEntities(entities, config);
-    // Dummy patches for website (no actual PR diff available)
-    const dummyPatches = entities.map(e => ({ filePath: e.filePath, changedColumns: [], isStructuralChange: false, changeDescription: '' }));
-    const policyResult = evaluatePolicies(entities, dummyPatches, config);
-    const aggregate = computePRAggregate(report, entities, dummyPatches, config);
-
-    // New governance modules
-    const trustSignal = computeTrustSignal(entities, report, policyResult);
-    const routingResult = routeByRiskType(entities, report, policyResult);
-    const remediationPlan = generateRemediations(entities, dummyPatches, report, policyResult);
-    const auditTrail = buildAuditTrail({
-      entities, report, aggregate, policyResult,
-      patchAnalyses: dummyPatches,
-      reviewerResult: { users: [...policyResult.allRequiredUsers, ...routingResult.users], teams: [...policyResult.allRequiredTeams, ...routingResult.teams] },
-      appliedLabels: [],
-    });
-
-    const results = report.assessments.map((a, i) => {
-      const entity = entities[i];
-      const ownerObj = entity.entity?.owner;
-      const rollout = generateRolloutGuidance(dummyPatches[i], entity);
-      return {
-        file: a.filePath, fqn: a.fqn, found: entity.found !== false,
-        score: a.score, level: a.level, factors: a.factors,
-        owner: ownerObj ? (ownerObj.displayName || ownerObj.name) : null,
-        ownerType: ownerObj?.type || null,
-        tier: entity.entity?.tier || null,
-        tags: (entity.entity?.tags || []).map(t => t.tagFQN),
-        columns: entity.entity?.columns?.length || 0,
-        downstream: {
-          total: entity.downstream?.total || 0,
-          tables: entity.downstream?.tables?.length || 0,
-          dashboards: entity.downstream?.dashboards?.length || 0,
-          mlModels: entity.downstream?.mlModels?.length || 0,
-          columnImpact: entity.downstream?.columnImpact || [],
-        },
-        glossaryTerms: entity.glossaryTerms || [],
-        qualityIssues: entity.activeQualityIssues || [],
-        rollout,
-      };
-    });
-    const policies = policyResult.triggeredPolicies.map(p => ({
-      name: p.name, severity: p.severity, reason: p.reason,
-      requiredTeams: p.requiredTeams, requiredUsers: p.requiredUsers, signals: p.signals,
-    }));
-    res.json({
-      maxScore: report.maxScore, overallLevel: report.overallLevel,
-      decision: report.decision, summary: report.summary,
-      results, policies,
-      isBlocked: policyResult.isBlocked,
-      allRequiredTeams: policyResult.allRequiredTeams,
-      allRequiredUsers: policyResult.allRequiredUsers,
-      trustSignal,
-      remediationPlan,
-      auditTrail,
-      routingResult,
-    });
+    const result = runGovernancePipeline(entities, config);
+    res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -416,6 +431,42 @@ section{padding:88px 0}
   border-radius:50%;animation:sp .7s linear infinite;
 }
 @keyframes sp{to{transform:rotate(360deg)}}
+
+/* Demo banner */
+.demo-banner{
+  display:none;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;
+  padding:14px 20px;margin-bottom:20px;border-radius:10px;
+  background:rgba(250,204,21,0.08);border:1px solid rgba(250,204,21,0.25);
+}
+.demo-banner-left{display:flex;align-items:center;gap:12px;font-size:0.85rem;color:var(--text-2);flex:1}
+.demo-badge{
+  background:rgba(250,204,21,0.15);color:#f59e0b;border:1px solid rgba(250,204,21,0.3);
+  padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:700;white-space:nowrap;
+}
+.demo-close{
+  background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--text-3);
+  padding:5px 12px;border-radius:6px;font-size:0.78rem;cursor:pointer;
+}
+.demo-close:hover{background:rgba(255,255,255,0.05);color:var(--text)}
+
+/* Dash actions row */
+.dash-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.demo-btn{
+  padding:11px 24px;border-radius:8px;font-size:0.88rem;font-weight:600;
+  background:rgba(250,204,21,0.12);color:#f59e0b;
+  border:1px solid rgba(250,204,21,0.25);cursor:pointer;
+  font-family:var(--font);transition:all .15s;
+}
+.demo-btn:hover{background:rgba(250,204,21,0.2);border-color:rgba(250,204,21,0.4)}
+
+/* Demo mode result badge */
+.demo-result-badge{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:600;
+  background:rgba(250,204,21,0.12);color:#f59e0b;border:1px solid rgba(250,204,21,0.25);
+  margin-left:12px;vertical-align:middle;
+}
+
 
 /* ────────── Results ────────── */
 #results{display:none}
@@ -886,11 +937,20 @@ jobs:
 <!-- Dashboard -->
 <section id="dashboard">
   <div class="wrap">
-    <div class="sh"><div class="sh-label">Interactive</div><h2>Live Analysis</h2><p>Select tables to analyze against the OpenMetadata sandbox.</p></div>
+    <div class="sh"><div class="sh-label">Interactive</div><h2>Live Analysis</h2><p>Select tables to analyze against the OpenMetadata sandbox — or try the instant demo with pre-loaded fixture data.</p></div>
+
+    <!-- Demo Mode Banner -->
+    <div class="demo-banner" id="demo-banner">
+      <div class="demo-banner-left">
+        <span class="demo-badge">&#x26A1; Demo Mode</span>
+        <span>Running with fixture data — <strong>fact_orders</strong> (Tier 1, PII, 7 downstream) + <strong>stg_payments</strong> (no owner). Full 8-factor governance pipeline.</span>
+      </div>
+      <button class="demo-close" onclick="exitDemo()">&#x2715; Exit Demo</button>
+    </div>
 
     <div id="conn" class="conn wait">Checking connection...</div>
 
-    <div class="selector">
+    <div class="selector" id="live-selector">
       <div class="sel-top">
         <h3>Select Tables</h3>
         <div class="sel-acts">
@@ -901,7 +961,10 @@ jobs:
       </div>
       <input type="text" class="search-input" id="search-input" placeholder="Search tables by name, FQN, or owner..." oninput="renderChips()">
       <div class="chips" id="chips"></div>
-      <button class="go" id="go-btn" onclick="analyze()" disabled>Analyze Risk</button>
+      <div class="dash-actions">
+        <button class="go" id="go-btn" onclick="analyze()" disabled>Analyze Risk</button>
+        <button class="demo-btn" onclick="analyzeDemo()">&#x26A1; Run Demo</button>
+      </div>
     </div>
 
     <div id="results"></div>
@@ -977,9 +1040,34 @@ async function checkConn(){
   }catch(e){el.className='conn err';el.innerHTML='\\u274C '+e.message}
 }
 
+async function analyzeDemo(){
+  var btn=document.getElementById('go-btn'),res=document.getElementById('results');
+  var banner=document.getElementById('demo-banner');
+  btn.classList.add('spin');btn.disabled=true;res.style.display='none';
+  if(banner) banner.style.display='flex';
+  try{
+    var r=await fetch('/api/demo');
+    var d=await r.json();
+    if(d.error)throw new Error(d.error);
+    d._isDemo=true;
+    renderResults(d);
+  }catch(e){
+    res.style.display='block';
+    res.innerHTML='<div style="padding:20px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.12);border-radius:10px;color:var(--red)">'+e.message+'</div>';
+  }finally{btn.classList.remove('spin');btn.disabled=false}
+}
+
+function exitDemo(){
+  var banner=document.getElementById('demo-banner');
+  if(banner)banner.style.display='none';
+  document.getElementById('results').style.display='none';
+}
+
 async function analyze(){
   var btn=document.getElementById('go-btn'),res=document.getElementById('results');
+  var banner=document.getElementById('demo-banner');
   btn.classList.add('spin');btn.disabled=true;res.style.display='none';
+  if(banner)banner.style.display='none';
   var files=[...sel].map(function(i){return FILES[i]});
   try{
     var r=await fetch('/api/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({files:files})});
@@ -1004,6 +1092,7 @@ function renderResults(d){
   h+='<circle class="ring-fg" cx="85" cy="85" r="76" style="stroke:'+c+';stroke-dasharray:'+circ+';stroke-dashoffset:'+off+'"/>';
   h+='</svg><div class="ring-center"><div class="ring-num" style="color:'+c+'">'+d.maxScore+'</div><div class="ring-lbl">of 100</div></div></div>';
   h+='<div class="res-meta">';
+  if(d._isDemo||d.isDemo) h+='<div class="rm-row"><span class="demo-result-badge">&#x26A1; Demo Mode — fixture data</span></div>';
   h+='<div class="rm-row"><span class="rm-k">Risk Level</span><span class="rm-v">'+E[d.overallLevel]+' '+d.overallLevel+'</span></div>';
   h+='<div class="rm-row"><span class="rm-k">Decision</span><span class="rm-badge" style="background:'+c+'15;color:'+c+';border:1px solid '+c+'30">'+D[d.decision]+'</span></div>';
   h+='<div class="rm-row"><span class="rm-k">Entities</span><span class="rm-v">'+d.summary.resolvedEntities+' / '+d.summary.totalEntities+' resolved</span></div>';
