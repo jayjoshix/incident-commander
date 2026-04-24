@@ -207,11 +207,14 @@ npx ts-node src/cli.ts demo --json
 
 ### Live OpenMetadata Integration
 
-#### Option A: OpenMetadata Sandbox (Recommended for Testing)
+#### ✅ Option A: OpenMetadata Sandbox (Recommended — no install needed)
+
+This project runs against **`https://sandbox.open-metadata.org`** — the official OpenMetadata public sandbox. No Docker, no local server required.
 
 ```bash
-# 1. Get a personal access token from https://sandbox.open-metadata.org
-#    → Log in → Settings → Users → Your profile → Access Tokens → Generate
+# 1. Get a personal access token
+#    → https://sandbox.open-metadata.org
+#    → Settings → Users → Your profile → Access Tokens → Generate
 
 # 2. Set credentials
 export OPENMETADATA_URL=https://sandbox.open-metadata.org
@@ -221,35 +224,16 @@ export OPENMETADATA_TOKEN=<your-jwt-token>
 npm run live-test
 ```
 
-#### Option B: Local OpenMetadata (Docker)
+> **This is the only setup path you need.** The sandbox is a live, always-on OpenMetadata v1.12 instance hosted by the OpenMetadata team, seeded with sample tables, lineage, tags, contracts, and quality tests.
+
+#### Option B: Existing OpenMetadata Instance
 
 ```bash
-# 1. Start OpenMetadata locally (requires Docker)
-npm run setup-om
-
-# 2. Get your JWT token from the OpenMetadata UI:
-#    → http://localhost:8585 → Settings → Bots → ingestion-bot → Copy Token
-
-# 3. Set credentials
-export OPENMETADATA_URL=http://localhost:8585
-export OPENMETADATA_TOKEN=<your-jwt-token>
-
-# 4. Seed sample data (tables, lineage, tags, ownership)
-npm run seed
-
-# 5. Run the full integration test suite
-npm run integration-test
-```
-
-#### Option C: Existing OpenMetadata Instance
-
-```bash
-# Point to your instance
+# Point to your own instance
 export OPENMETADATA_URL=https://your-openmetadata.company.com
 export OPENMETADATA_TOKEN=<your-jwt-token>
 
 # Update .lineagelock.json with your service/database/schema names
-# Then analyze files that match entities in your instance
 npm run build
 node dist/src/cli.js analyze --changed-file models/fact_orders.sql \
   --om-url $OPENMETADATA_URL --om-token $OPENMETADATA_TOKEN
@@ -426,11 +410,10 @@ npm run live-test
 |--------|-------------|
 | `npm run build` | Compile TypeScript to `dist/` |
 | `npm run demo` | Run demo with fixture data |
-| `npm test` | Run 59 unit tests |
+| `npm test` | Run 199 unit + integration tests |
+| `npm run website` | Start the live governance dashboard on :3000 |
 | `npm run live-test` | Test against live OpenMetadata sandbox |
-| `npm run seed` | Seed local OpenMetadata with sample data |
-| `npm run integration-test` | E2E test against live instance |
-| `npm run setup-om` | Start local OpenMetadata via Docker |
+| `npm run integration-test` | E2E test against live OM instance |
 | `npm run clean` | Remove dist/ and coverage/ |
 
 ## Project Structure
