@@ -667,12 +667,16 @@ footer a{color:var(--saffron);text-decoration:none}
   <div class="wrap">
     <div class="sh"><div class="sh-label">Capabilities</div><h2>Why LineageLock</h2><p>Catch data problems before they reach production.</p></div>
     <div class="f-grid">
-      <div class="f-card"><div class="f-icon">&#x1F4A5;</div><h3>Blast Radius</h3><p>Maps every downstream table, dashboard, and ML model affected by your change via OpenMetadata lineage.</p></div>
-      <div class="f-card"><div class="f-icon">&#x1F4CB;</div><h3>Contract Verification</h3><p>Checks data contract test suites and flags violations before they break downstream consumers.</p></div>
-      <div class="f-card"><div class="f-icon">&#x1F3F7;&#xFE0F;</div><h3>Sensitive Data Detection</h3><p>Flags changes to PII, GDPR, confidential, and PHI-tagged assets using OpenMetadata classifications.</p></div>
+      <div class="f-card"><div class="f-icon">&#x1F4A5;</div><h3>Blast Radius</h3><p>Maps every downstream table, dashboard, and ML model affected by your change via OpenMetadata column-level lineage.</p></div>
+      <div class="f-card"><div class="f-icon">&#x1F4CB;</div><h3>Contract Verification</h3><p>Checks data contract test suites and flags violations before they break downstream consumers. +40 risk weight.</p></div>
+      <div class="f-card"><div class="f-icon">&#x1F3F7;&#xFE0F;</div><h3>Sensitive Data Detection</h3><p>Flags changes to PII, GDPR, confidential, and PHI-tagged assets using OpenMetadata classifications. Deduped across entity + column tags.</p></div>
       <div class="f-card"><div class="f-icon">&#x1F3AF;</div><h3>Tier-Based Risk</h3><p>Tier 1 and Tier 2 assets get higher risk scores. Business-critical changes cannot slip through.</p></div>
       <div class="f-card"><div class="f-icon">&#x1F465;</div><h3>Owner Identification</h3><p>Identifies stakeholders from OpenMetadata ownership and flags unowned assets as governance risks.</p></div>
       <div class="f-card"><div class="f-icon">&#x2699;&#xFE0F;</div><h3>GitHub Action</h3><p>Drop-in GitHub Action that posts risk reports as PR comments and can block merges automatically.</p></div>
+      <div class="f-card"><div class="f-icon">&#x1F3DB;&#xFE0F;</div><h3>Trust Signal</h3><p>A&#x2013;F grade across 5 governance dimensions: owner coverage, contract health, observability, governance posture, and lineage.</p></div>
+      <div class="f-card"><div class="f-icon">&#x1F527;</div><h3>Remediation Engine</h3><p>Generates per-risk safe-fix plans with step-by-step actions, tool hints, and follow-up PR scope checklists.</p></div>
+      <div class="f-card"><div class="f-icon">&#x1F4CB;</div><h3>Audit Trail</h3><p>Every governance decision persisted to <code>artifacts/lineagelock-audit.json</code> for compliance teams and CI auditability.</p></div>
+      <div class="f-card"><div class="f-icon">&#x1F500;</div><h3>Risk-Type Routing</h3><p>PII &#x2192; privacy-team, contract &#x2192; data-quality, dashboard &#x2192; bi-owners, no-owner &#x2192; platform-admin. Automatic and explainable.</p></div>
     </div>
   </div>
 </section>
@@ -720,10 +724,14 @@ footer a{color:var(--saffron);text-decoration:none}
     <div class="f-grid">
       <div class="f-card"><div class="f-icon">&#x1F50D;</div><h3>Asset Resolver</h3><p>Maps file paths to OpenMetadata FQNs using configurable naming conventions and explicit mappings.</p></div>
       <div class="f-card"><div class="f-icon">&#x1F310;</div><h3>OpenMetadata Client</h3><p>REST client with response normalization, v1.12+ compatibility, 404 handling, and error propagation.</p></div>
-      <div class="f-card"><div class="f-icon">&#x1F4CA;</div><h3>Risk Scoring Engine</h3><p>Deterministic 0-100 scorer with 7 weighted factors. Segment-boundary tag matching prevents FPs.</p></div>
-      <div class="f-card"><div class="f-icon">&#x1F4CB;</div><h3>Report Renderer</h3><p>Generates rich Markdown PR comments with collapsible sections and stakeholder notifications.</p></div>
+      <div class="f-card"><div class="f-icon">&#x1F4CA;</div><h3>Risk Scoring Engine</h3><p>Deterministic 0&#x2013;100 scorer with <strong>8 weighted factors</strong>. Factor 8: active quality issues (+15). Tag dedup prevents false positives.</p></div>
+      <div class="f-card"><div class="f-icon">&#x1F4CB;</div><h3>Report Renderer</h3><p>11-section PR comment: blast radius, trust signal, routing, remediation, audit trail, rollout guidance, and more.</p></div>
       <div class="f-card"><div class="f-icon">&#x2699;&#xFE0F;</div><h3>Config Loader</h3><p>Merges .lineagelock.json, environment variables, and GitHub Action inputs with sensible defaults.</p></div>
-      <div class="f-card"><div class="f-icon">&#x1F916;</div><h3>Action Orchestrator</h3><p>GitHub Action entry point — detects changed files, runs analysis, posts comments, sets exit codes.</p></div>
+      <div class="f-card"><div class="f-icon">&#x1F916;</div><h3>Action Orchestrator</h3><p>GitHub Action entry point — detects changed files, runs analysis, posts comments, sets exit codes, writes artifacts.</p></div>
+      <div class="f-card"><div class="f-icon">&#x1F3DB;&#xFE0F;</div><h3>Trust Signal</h3><p>A&#x2013;F grade across 5 governance dimensions powered by live OpenMetadata metadata.</p></div>
+      <div class="f-card"><div class="f-icon">&#x1F527;</div><h3>Remediation Engine</h3><p>7 risk-type safe-fix generators. Each item has priority, step-by-step actions, and follow-up PR scope.</p></div>
+      <div class="f-card"><div class="f-icon">&#x1F4DD;</div><h3>Audit Trail</h3><p>Structured JSON audit record for every CI run. Covers decision, score, policies, reviewers, and entity details.</p></div>
+      <div class="f-card"><div class="f-icon">&#x1F500;</div><h3>Risk-Type Routing</h3><p>Maps 7 risk categories to specific reviewer teams with explicit reasons surfaced in the PR comment.</p></div>
     </div>
   </div>
 </section>
@@ -750,17 +758,18 @@ footer a{color:var(--saffron);text-decoration:none}
 <!-- Scoring -->
 <section id="scoring">
   <div class="wrap">
-    <div class="sh"><div class="sh-label">Risk Model</div><h2>Scoring Methodology</h2><p>Deterministic score from 0 to 100 based on 7 weighted factors.</p></div>
+    <div class="sh"><div class="sh-label">Risk Model</div><h2>Scoring Methodology</h2><p>Deterministic score from 0 to 100 based on <strong>8 weighted factors</strong>. All weights configurable via <code>.lineagelock.json</code>.</p></div>
     <table class="s-table">
       <thead><tr><th>Factor</th><th>Weight</th><th>Trigger</th></tr></thead>
       <tbody>
         <tr><td>Contract Violation</td><td class="wt">+40</td><td>Data contract tests failing</td></tr>
         <tr><td>Critical Tier</td><td class="wt">+20</td><td>Asset is Tier 1 or Tier 2</td></tr>
-        <tr><td>Sensitive Tags</td><td class="wt">+20</td><td>PII, GDPR, Confidential tags found</td></tr>
+        <tr><td>Sensitive Tags</td><td class="wt">+20</td><td>PII, GDPR, Confidential tags found (deduped)</td></tr>
         <tr><td>Downstream Dashboards</td><td class="wt">+10</td><td>Any dashboard depends on asset</td></tr>
         <tr><td>Downstream ML Models</td><td class="wt">+10</td><td>Any ML model depends on asset</td></tr>
         <tr><td>High Downstream Count</td><td class="wt">+10</td><td>5 or more downstream entities</td></tr>
         <tr><td>No Owner</td><td class="wt">+10</td><td>No owner assigned in OpenMetadata</td></tr>
+        <tr style="background:rgba(34,197,94,0.05)"><td><strong>&#x1F7E2; Active Quality Issues</strong></td><td class="wt" style="color:#4ade80">+15</td><td>Failing OM quality tests on this asset</td></tr>
       </tbody>
     </table>
   </div>
