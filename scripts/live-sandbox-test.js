@@ -28,11 +28,15 @@ if (!OM_TOKEN) {
   process.exit(1);
 }
 
-// Files to analyze (simulating a PR)
+// Files to analyze — simulating a PR that touches 3 real sandbox entities
+// All 3 confirmed to exist in sandbox.open-metadata.org with tags, tiers, owners
 const CHANGED_FILES = [
-  { file: 'models/marts/fact_orders.sql', fqn: 'acme_nexus_analytics.ANALYTICS.MARTS.fact_orders' },
-  { file: 'models/staging/stg_orders.sql', fqn: 'acme_nexus_analytics.ANALYTICS.STAGING.stg_orders' },
-  { file: 'models/staging/stg_products.sql', fqn: 'acme_nexus_analytics.ANALYTICS.STAGING.stg_products' },
+  // Tier 1, DataTier, Business_Glossary — highest risk entity
+  { file: 'models/marts/fact_orders.sql',        fqn: 'acme_nexus_analytics.ANALYTICS.MARTS.fact_orders' },
+  // Confidential + Tier2 — sensitive clickstream data
+  { file: 'models/raw/clickstream.sql',           fqn: 'acme_nexus_raw_data.acme_raw.analytics.clickstream' },
+  // PII.Name tag — customer PII data
+  { file: 'models/staging/dim_customer.sql',      fqn: 'sample_redshift.staging_db.integration.dim_customer' },
 ];
 
 async function main() {

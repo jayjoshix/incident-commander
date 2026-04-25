@@ -542,84 +542,109 @@ section{padding:88px 0}
   background:rgba(255,255,255,0.03);border:1px solid var(--border);
   border-radius:18px;box-shadow:var(--shadow-lg);backdrop-filter:blur(12px);
 }
-.ring{position:relative;width:170px;height:170px;flex-shrink:0}
-.ring svg{transform:rotate(-90deg)}
-.ring-bg{fill:none;stroke:var(--border);stroke-width:7}
-.ring-fg{fill:none;stroke-width:7;stroke-linecap:round;transition:all 1.2s ease}
+.ring{position:relative;width:190px;height:190px;flex-shrink:0}
+.ring svg{transform:rotate(-90deg);filter:drop-shadow(0 0 12px var(--ring-color, rgba(245,158,11,0.3)))}
+.ring-bg{fill:none;stroke:rgba(255,255,255,0.06);stroke-width:8}
+.ring-fg{fill:none;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset 1.5s cubic-bezier(0.4,0,0.2,1)}
 .ring-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.ring-num{font-size:2.8rem;font-weight:700;letter-spacing:-0.03em}
-.ring-lbl{font-size:0.78rem;color:var(--text-4)}
+.ring-num{font-size:3.2rem;font-weight:800;letter-spacing:-0.04em}
+.ring-lbl{font-size:0.78rem;color:var(--text-4);font-weight:500}
 
-.res-meta{display:flex;flex-direction:column;gap:12px}
-.rm-row{display:flex;align-items:center;gap:10px}
-.rm-k{color:var(--text-4);font-size:0.82rem;min-width:110px}
-.rm-v{font-weight:600;font-size:0.95rem;color:var(--text)}
+.res-meta{display:flex;flex-direction:column;gap:14px;flex:1}
+.rm-row{display:flex;align-items:center;gap:12px}
+.rm-k{color:var(--text-4);font-size:0.82rem;min-width:115px;font-weight:500}
+.rm-v{font-weight:700;font-size:0.95rem;color:var(--text)}
 .rm-badge{
-  display:inline-flex;align-items:center;gap:5px;
-  padding:4px 12px;border-radius:999px;font-weight:600;font-size:0.82rem;
+  display:inline-flex;align-items:center;gap:6px;
+  padding:5px 14px;border-radius:999px;font-weight:700;font-size:0.82rem;
 }
 
-.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px}
+.stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px}
 .stat{
-  background:var(--surface);border:1px solid var(--border);border-radius:12px;
-  padding:18px;text-align:center;box-shadow:var(--shadow);
+  background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:14px;
+  padding:20px;text-align:center;position:relative;overflow:hidden;
+  backdrop-filter:blur(8px);transition:all .2s;
 }
-.stat-n{font-size:1.8rem;font-weight:700;color:var(--text)}
-.stat-l{font-size:0.68rem;color:var(--text-4);text-transform:uppercase;letter-spacing:0.06em;margin-top:2px}
+.stat::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--amber) 0%,var(--amber-light) 100%);
+  opacity:0.6;
+}
+.stat:hover{border-color:var(--border-strong);transform:translateY(-2px);box-shadow:var(--shadow-lg)}
+.stat-n{font-size:2rem;font-weight:800;color:var(--text);letter-spacing:-0.02em}
+.stat-l{font-size:0.66rem;color:var(--text-4);text-transform:uppercase;letter-spacing:0.08em;margin-top:4px;font-weight:600}
 
 /* Entity cards */
 .ent{
-  background:var(--surface);border:1px solid var(--border);border-radius:14px;
-  padding:22px;margin-bottom:10px;box-shadow:var(--shadow);transition:border-color .15s;
+  background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:16px;
+  padding:24px;margin-bottom:12px;position:relative;overflow:hidden;
+  border-left:3px solid var(--ent-color, var(--border));
+  backdrop-filter:blur(8px);transition:all .2s;
 }
-.ent:hover{border-color:var(--border-strong)}
-.ent-top{display:flex;align-items:center;gap:12px;margin-bottom:16px}
-.ent-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.ent:hover{border-color:var(--border-strong);transform:translateY(-1px);box-shadow:var(--shadow-lg)}
+.ent-top{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+.ent-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;box-shadow:0 0 8px currentColor}
 .ent-info{flex:1}
-.ent-file{font-weight:600;font-size:0.92rem;color:var(--text)}
+.ent-file{font-weight:700;font-size:0.92rem;color:var(--text);letter-spacing:-0.01em}
 .ent-fqn{font-size:0.7rem;color:var(--text-4);font-family:var(--mono)}
 .ent-sc{text-align:right}
-.ent-sc-n{font-size:1.8rem;font-weight:700}
+.ent-sc-n{font-size:2rem;font-weight:800;letter-spacing:-0.02em}
 .ent-sc-m{font-size:0.82rem;color:var(--text-4)}
-.ent-sc-l{font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;display:block}
+.ent-sc-l{font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;display:block;margin-top:2px}
 
 .ent-meta{
-  display:flex;gap:20px;padding:10px 14px;margin-bottom:12px;
-  background:var(--bg-warm);border-radius:8px;
+  display:flex;gap:20px;padding:12px 16px;margin-bottom:14px;
+  background:rgba(255,255,255,0.03);border-radius:10px;border:1px solid var(--border);
 }
-.em-l{font-size:0.63rem;color:var(--text-4);text-transform:uppercase;letter-spacing:0.05em}
-.em-v{font-size:0.82rem;font-weight:500;margin-top:1px;color:var(--text-2)}
+.em-l{font-size:0.63rem;color:var(--text-4);text-transform:uppercase;letter-spacing:0.06em;font-weight:600}
+.em-v{font-size:0.82rem;font-weight:500;margin-top:2px;color:var(--text-2)}
 .em-w{color:var(--orange)}
 
-.tag-row{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px}
+.tag-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:14px}
 .tag{
-  padding:2px 7px;border-radius:4px;font-size:0.66rem;font-weight:500;
-  background:var(--saffron-bg);color:var(--saffron-dark);border:1px solid var(--saffron-border);
+  padding:3px 9px;border-radius:6px;font-size:0.66rem;font-weight:600;
+  background:rgba(245,158,11,0.08);color:var(--amber-light);border:1px solid rgba(245,158,11,0.2);
 }
 
 .fac-toggle{
-  font-size:0.76rem;color:var(--text-3);cursor:pointer;font-weight:500;
-  background:none;border:none;padding:4px 0;font-family:var(--font);
-  display:flex;align-items:center;gap:5px;
+  font-size:0.78rem;color:var(--text-3);cursor:pointer;font-weight:600;
+  background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;
+  padding:8px 14px;font-family:var(--font);
+  display:flex;align-items:center;gap:6px;transition:all .15s;
 }
-.fac-toggle:hover{color:var(--text)}
-.fac-body{display:none;margin-top:8px}
+.fac-toggle:hover{color:var(--text);background:rgba(255,255,255,0.06);border-color:var(--border-strong)}
+.fac-body{display:none;margin-top:10px;padding:12px;background:rgba(255,255,255,0.02);border-radius:10px;border:1px solid var(--border)}
 .fac-body.open{display:block}
-.fac-row{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border)}
+.fac-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)}
 .fac-row:last-child{border:none}
-.fac-n{font-size:0.8rem;min-width:160px;color:var(--text-3)}
-.fac-bar{flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden}
-.fac-fill{height:100%;border-radius:2px;transition:width .6s ease}
-.fac-pts{font-size:0.76rem;color:var(--text-4);min-width:46px;text-align:right;font-family:var(--mono)}
+.fac-n{font-size:0.8rem;min-width:170px;color:var(--text-3);font-weight:500}
+.fac-bar{flex:1;height:5px;background:rgba(255,255,255,0.06);border-radius:3px;overflow:hidden}
+.fac-fill{height:100%;border-radius:3px;transition:width .8s cubic-bezier(0.4,0,0.2,1)}
+.fac-pts{font-size:0.76rem;color:var(--text-4);min-width:46px;text-align:right;font-family:var(--mono);font-weight:500}
 .fac-st{font-size:0.8rem;width:18px;text-align:center}
 
 /* ────────── Footer ────────── */
 footer{
-  text-align:center;padding:32px;
+  text-align:center;padding:48px 32px;
   border-top:1px solid var(--border);
-  color:var(--text-4);font-size:0.76rem;
+  color:var(--text-4);font-size:0.78rem;line-height:1.8;
 }
-footer a{color:var(--saffron);text-decoration:none}
+footer a{color:var(--amber);text-decoration:none;font-weight:600;transition:color .15s}
+footer a:hover{color:var(--amber-light)}
+.footer-brand{font-size:1rem;font-weight:800;color:var(--text);margin-bottom:4px;letter-spacing:-0.02em}
+.footer-brand em{
+  font-style:normal;
+  background:linear-gradient(135deg,var(--amber) 0%,var(--amber-light) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.footer-om{display:inline-flex;align-items:center;gap:6px;padding:4px 14px;border-radius:999px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);font-size:0.72rem;font-weight:600;color:#a78bfa;margin:10px 0}
+
+/* ────────── Scroll Reveal ────────── */
+.reveal{opacity:0;transform:translateY(30px);transition:opacity .6s cubic-bezier(0.4,0,0.2,1),transform .6s cubic-bezier(0.4,0,0.2,1)}
+.reveal.visible{opacity:1;transform:translateY(0)}
+.reveal-delay-1{transition-delay:.1s}
+.reveal-delay-2{transition-delay:.2s}
+.reveal-delay-3{transition-delay:.3s}
 
 /* ────────── Responsive ────────── */
 @media(max-width:900px){
@@ -1038,8 +1063,10 @@ jobs:
 </section>
 
 <footer>
-  Built for the <a href="https://wemakedevs.org">WeMakeDevs &#xD7; OpenMetadata Hackathon</a> (April 2026)<br>
-  <a href="https://github.com/jayjoshix/incident-commander">GitHub</a> &middot; Powered by <a href="https://open-metadata.org">OpenMetadata</a>
+  <div class="footer-brand">Lineage<em>Lock</em></div>
+  <div class="footer-om">⚡ Powered by OpenMetadata</div><br>
+  Built for the <a href="https://wemakedevs.org">WeMakeDevs × OpenMetadata Hackathon</a> (April 2026)<br>
+  <a href="https://github.com/jayjoshix/incident-commander">GitHub</a> · <a href="https://open-metadata.org">OpenMetadata</a> · 199 tests · 85% branch coverage
 </footer>
 
 <script>
@@ -1149,13 +1176,13 @@ async function analyze(){
 function renderResults(d){
   var el=document.getElementById('results');
   var c=C[d.overallLevel];
-  var circ=2*Math.PI*76,off=circ*(1-d.maxScore/100);
   var h='';
 
   h+='<div class="res-hero">';
-  h+='<div class="ring"><svg viewBox="0 0 170 170" width="180" height="180">';
-  h+='<circle class="ring-bg" cx="85" cy="85" r="76"/>';
-  h+='<circle class="ring-fg" cx="85" cy="85" r="76" style="stroke:'+c+';stroke-dasharray:'+circ+';stroke-dashoffset:'+off+'"/>';
+  h+='<div class="ring" style="--ring-color:'+c+'40"><svg viewBox="0 0 190 190" width="190" height="190">';
+  h+='<circle class="ring-bg" cx="95" cy="95" r="80"/>';
+  var circ2=2*Math.PI*80,off2=circ2*(1-d.maxScore/100);
+  h+='<circle class="ring-fg" cx="95" cy="95" r="80" style="stroke:'+c+';stroke-dasharray:'+circ2+';stroke-dashoffset:'+off2+'"/>';
   h+='</svg><div class="ring-center"><div class="ring-num" style="color:'+c+'">'+d.maxScore+'</div><div class="ring-lbl">of 100</div></div></div>';
   h+='<div class="res-meta">';
   if(d._isDemo||d.isDemo) h+='<div class="rm-row"><span class="demo-result-badge">&#x26A1; Demo Mode — fixture data</span></div>';
@@ -1233,13 +1260,13 @@ function renderResults(d){
   h+='<div class="stat"><div class="stat-n">'+d.summary.unresolvedEntities+'</div><div class="stat-l">Unresolved</div></div>';
   h+='</div>';
 
-  h+='<h3 style="font-size:1.1rem;font-weight:600;margin-bottom:14px">Per-Entity Analysis</h3>';
+  h+='<h3 style="font-size:1.15rem;font-weight:800;margin-bottom:16px;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px"><span style="width:20px;height:2px;background:var(--amber);display:block;opacity:0.6"></span>Per-Entity Analysis</h3>';
 
   d.results.forEach(function(r){
     var rc=C[r.level];
     var tr=r.factors.filter(function(f){return f.triggered}).length;
-    h+='<div class="ent">';
-    h+='<div class="ent-top"><div class="ent-dot" style="background:'+rc+'"></div>';
+    h+='<div class="ent" style="--ent-color:'+rc+'">';
+    h+='<div class="ent-top"><div class="ent-dot" style="background:'+rc+';color:'+rc+'"></div>';
     h+='<div class="ent-info"><div class="ent-file">'+r.file+'</div><div class="ent-fqn">'+r.fqn+'</div></div>';
     h+='<div class="ent-sc"><span class="ent-sc-n" style="color:'+rc+'">'+r.score+'</span><span class="ent-sc-m">/100</span><span class="ent-sc-l" style="color:'+rc+'">'+r.level+'</span></div></div>';
 
@@ -1386,6 +1413,17 @@ function formatAge(ts){
 
 loadTables();
 checkConn();
+
+// Scroll reveal
+var observer = new IntersectionObserver(function(entries){
+  entries.forEach(function(e){
+    if(e.isIntersecting){e.target.classList.add('visible');observer.unobserve(e.target);}
+  });
+},{threshold:0.15});
+document.querySelectorAll('.sh, .f-card, .pipe, .s-table, .arch-box, .int-card, .cfg-code, .act-step, .oc, .selector, .conn').forEach(function(el){
+  el.classList.add('reveal');
+  observer.observe(el);
+});
 </script>
 </body>
 </html>`;
