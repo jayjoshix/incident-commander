@@ -11,8 +11,20 @@
   },
   "mappings": [
     {
+      "filePattern": "models/marts/customer_metrics.sql",
+      "fqn": "acme_nexus_analytics.ANALYTICS.METRICS.customer_metrics"
+    },
+    {
+      "filePattern": "models/marts/dim_customers.sql",
+      "fqn": "acme_nexus_analytics.ANALYTICS.MARTS.dim_customers"
+    },
+    {
+      "filePattern": "models/staging/clickstream.sql",
+      "fqn": "acme_nexus_raw_data.acme_raw.analytics.clickstream"
+    },
+    {
       "filePattern": "models/staging/**/*.sql",
-      "fqn": "acme_nexus_analytics.ANALYTICS.STAGING.{name}"
+      "fqn": "acme_nexus_raw_data.acme_raw.analytics.{name}"
     },
     {
       "filePattern": "models/marts/**/*.sql",
@@ -24,9 +36,9 @@
     }
   ],
   "sensitiveTags": {
-    "keywords": ["PII", "GDPR", "Confidential", "Sensitive", "PHI", "PCI", "DataSensitivity"]
+    "keywords": ["PII", "GDPR", "Confidential", "Sensitive", "PHI", "PCI", "DataSensitivity", "Highly Confidential", "PII.EmailRename", "PII.Sensitive"]
   },
-  "criticalTiers": ["Tier1", "Tier2", "Tier.Tier1", "Tier.Tier2"],
+  "criticalTiers": ["Tier1", "Tier2", "Tier.Tier1", "Tier.Tier2", "DataTier.Tier1"],
   "highDownstreamThreshold": 5,
   "thresholds": {
     "warn": 30,
