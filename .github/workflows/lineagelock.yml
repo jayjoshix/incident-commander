@@ -33,37 +33,7 @@ jobs:
       - name: Build
         run: npm run build
 
-      # ── GREEN demo branch: always passes (safe low-risk change) ──────────
-      - name: Run LineageLock (Safe — demo/green-safe-merge)
-        if: github.head_ref == 'demo/green-safe-merge'
-        uses: ./
-        env:
-          LINEAGELOCK_DEMO_MODE: 'true'
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          openmetadata-url: ${{ secrets.OPENMETADATA_URL }}
-          openmetadata-token: ${{ secrets.OPENMETADATA_TOKEN }}
-          config-path: '.lineagelock.json'
-          warn-threshold: '200'   # impossible to warn — always green
-          fail-threshold: '200'   # impossible to fail  — always green
-
-      # ── RED demo branch: always blocks (PII Tier1 critical change) ───────
-      - name: Run LineageLock (Blocked — demo/red-blocked-merge)
-        if: github.head_ref == 'demo/red-blocked-merge'
-        uses: ./
-        env:
-          LINEAGELOCK_DEMO_MODE: 'true'
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          openmetadata-url: ${{ secrets.OPENMETADATA_URL }}
-          openmetadata-token: ${{ secrets.OPENMETADATA_TOKEN }}
-          config-path: '.lineagelock.json'
-          warn-threshold: '30'
-          fail-threshold: '70'    # demo CRITICAL score is 100 — always fails
-
-      # ── All other PRs: live OpenMetadata analysis ─────────────────────────
-      - name: Run LineageLock (Live)
-        if: github.head_ref != 'demo/green-safe-merge' && github.head_ref != 'demo/red-blocked-merge'
+      - name: Run LineageLock
         uses: ./
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}

@@ -23,6 +23,10 @@
       "fqn": "acme_nexus_raw_data.acme_raw.analytics.clickstream"
     },
     {
+      "filePattern": "models/safe/raw_staffs.sql",
+      "fqn": "postgres_aws_harsh.TESTDB.sales._airbyte_raw_staffs"
+    },
+    {
       "filePattern": "models/staging/**/*.sql",
       "fqn": "acme_nexus_raw_data.acme_raw.analytics.{name}"
     },
