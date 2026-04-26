@@ -7,5 +7,7 @@ SELECT
     last_name,
     store_id,
     manager_id,
+    hire_date,          -- ADDED: non-sensitive field
+    department,         -- ADDED: non-sensitive field
     active
 FROM raw.staffs
