@@ -1,12 +1,13 @@
--- Customer Metrics
+-- Customer Metrics (high-risk Tier1 PII entity)
 -- Maps to: acme_nexus_analytics.ANALYTICS.METRICS.customer_metrics
--- Tier: Tier1 | Tags: PII, Confidential, Highly Confidential
--- Owner: shailesh.parmar
+-- Tier1 + PII + Confidential + Highly Confidential → score ~40/100 → FAILS
 SELECT
     customer_id,
-    email,           -- PII column being modified
+    contact_email,       -- RENAMED from email (breaking change)
+    phone_number,        -- ADDED new PII column
     total_orders,
     lifetime_value,
-    churn_score,     -- ML model feature
+    churn_score,
+    retention_score,     -- ADDED
     segment
 FROM {{ ref('dim_customers') }}
