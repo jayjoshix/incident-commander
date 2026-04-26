@@ -40,5 +40,5 @@ jobs:
           openmetadata-url: ${{ secrets.OPENMETADATA_URL }}
           openmetadata-token: ${{ secrets.OPENMETADATA_TOKEN }}
           config-path: '.lineagelock.json'
-          warn-threshold: '30'
-          fail-threshold: '70'
+          warn-threshold: '20'
+          fail-threshold: '30'
